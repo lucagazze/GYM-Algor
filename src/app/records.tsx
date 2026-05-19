@@ -12,6 +12,14 @@ const CAT_COLOR: Record<string, string> = {
   EMPUJE: '#E63946', TRACCION: '#3B82F6', PIERNA: '#10B981', SKILL: '#F59E0B',
 };
 
+const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+function fmtRecordDate(d: string) {
+  const parts = d.split('-');
+  if (parts.length !== 3) return d;
+  return `${parseInt(parts[2], 10)} ${MONTHS[parseInt(parts[1], 10) - 1]} ${parts[0]}`;
+}
+
 type Formula = 'epley' | 'brzycki' | 'wathen' | 'mayhew' | 'average';
 
 const FORMULAS: { key: Formula; label: string; desc: string }[] = [
@@ -186,7 +194,7 @@ export default function RecordsScreen() {
                         <View style={{ flex: 1 }}>
                           <Text style={s.recName}>{rec.exercise.name}</Text>
                           {rec.bestDate ? (
-                            <Text style={s.recDate}>PR el {rec.bestDate.split('-').reverse().slice(0, 2).join('/')}</Text>
+                            <Text style={s.recDate}>PR el {fmtRecordDate(rec.bestDate)}</Text>
                           ) : null}
                         </View>
                         <View style={{ alignItems: 'flex-end' }}>
