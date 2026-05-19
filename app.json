@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "AlgorLift",
+    "slug": "gym-tracker",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "gymtracker",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.lucagazze.gymtracker"
+    },
+    "android": {
+      "package": "com.lucagazze.gymtracker",
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0A",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png",
+      "display": "standalone",
+      "shortName": "AlgorLift",
+      "themeColor": "#0A0A0A",
+      "backgroundColor": "#0A0A0A",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0A0A0A",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 120
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
