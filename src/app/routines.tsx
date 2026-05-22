@@ -66,14 +66,14 @@ function RowStepper({ label, value, onChange, step = 1, min = 0, decimals = 0, o
   );
 }
 const rs = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-  label: { fontSize: 14, color: C.textSub, fontWeight: '500', letterSpacing: -0.1 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
+  label: { fontSize: 13, color: C.textSub, fontWeight: '500', letterSpacing: -0.1 },
   calcBtn: { backgroundColor: C.primaryDim, padding: 4, borderRadius: 6 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  btn: { width: 40, height: 40, backgroundColor: C.surfaceHigh, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  btnTxt: { color: C.text, fontSize: 22, fontWeight: '400', lineHeight: 26, marginTop: -1 },
-  valBox: { width: 76, height: 40, backgroundColor: C.bg, borderRadius: 12, justifyContent: 'center', borderWidth: 1, borderColor: C.border },
-  val: { color: C.text, fontSize: 18, fontWeight: '700', backgroundColor: 'transparent', textAlign: 'center' },
+  btn: { width: 34, height: 34, backgroundColor: C.surfaceHigh, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  btnTxt: { color: C.text, fontSize: 20, fontWeight: '400', lineHeight: 22, marginTop: -1 },
+  valBox: { width: 70, height: 36, backgroundColor: C.bg, borderRadius: 10, justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  val: { color: C.text, fontSize: 16, fontWeight: '700', backgroundColor: 'transparent', textAlign: 'center' },
 });
 
 export default function RoutinesScreen() {
@@ -360,7 +360,7 @@ export default function RoutinesScreen() {
                   <Ionicons name="pencil-outline" size={18} color={C.muted} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => deleteRoutine(r.id, r.name)} style={s.delBtn}>
-                  <Ionicons name="trash-outline" size={18} color="#3a3a3a" />
+                  <Ionicons name="trash-outline" size={18} color={C.muted} />
                 </TouchableOpacity>
               </View>
 
@@ -768,7 +768,7 @@ const s = StyleSheet.create({
   sessExName: { fontSize: 16, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
   sessExCat: { fontSize: 10, fontWeight: '800', marginTop: 2 },
   sessFormCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  formTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  formTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   serieLabel: { fontSize: 11, fontWeight: '900', color: C.textSub, letterSpacing: 2, textTransform: 'uppercase' },
   rmRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rmVal: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
@@ -782,7 +782,7 @@ const s = StyleSheet.create({
   setsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   setsTitle: { fontSize: 10, fontWeight: '800', color: C.textSub, letterSpacing: 1.5, textTransform: 'uppercase' },
   setsCount: { fontSize: 11, color: C.primary, fontWeight: '800' },
-  setRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, gap: 10 },
+  setRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border, gap: 8 },
   setRowPR: { backgroundColor: C.primaryDim },
   setNum: { fontSize: 10, color: C.mutedLight, fontWeight: '800', width: 22 },
   setData: { fontSize: 14, fontWeight: '800', color: C.text },

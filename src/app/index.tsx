@@ -75,14 +75,14 @@ function Stepper({
 }
 
 const st = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-  label: { fontSize: 14, color: C.textSub, fontWeight: '500', letterSpacing: -0.1 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
+  label: { fontSize: 13, color: C.textSub, fontWeight: '500', letterSpacing: -0.1 },
   calcBtn: { backgroundColor: C.primaryDim, padding: 4, borderRadius: 6 },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  btn: { width: 40, height: 40, backgroundColor: C.surfaceHigh, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  btnTxt: { color: C.text, fontSize: 22, fontWeight: '400', lineHeight: 26, marginTop: -1 },
-  valBox: { width: 76, height: 40, backgroundColor: C.bg, borderRadius: 12, justifyContent: 'center', borderWidth: 1, borderColor: C.border },
-  val: { color: C.text, fontSize: 18, fontWeight: '700', backgroundColor: 'transparent', textAlign: 'center' },
+  btn: { width: 34, height: 34, backgroundColor: C.surfaceHigh, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  btnTxt: { color: C.text, fontSize: 20, fontWeight: '400', lineHeight: 22, marginTop: -1 },
+  valBox: { width: 70, height: 36, backgroundColor: C.bg, borderRadius: 10, justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  val: { color: C.text, fontSize: 16, fontWeight: '700', backgroundColor: 'transparent', textAlign: 'center' },
 });
 
 export default function LogScreen() {
@@ -400,15 +400,13 @@ export default function LogScreen() {
                 return (
                   <View key={set.id ?? i} style={[s.logRow, set.is_pr && s.logRowPR]}>
                     <Text style={s.logIdx}>S{i+1}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.logVal}>{val}</Text>
-                      {set.estimated_1rm > 0 && (
-                        <Text style={s.log1rm}>{Number(set.estimated_1rm).toFixed(1)} kg est.</Text>
-                      )}
-                    </View>
+                    <Text style={[s.logVal, { flex: 1 }]}>{val}</Text>
+                    {set.estimated_1rm > 0 && (
+                      <Text style={s.log1rm}>{Number(set.estimated_1rm).toFixed(1)} kg</Text>
+                    )}
                     {set.is_pr && <Text style={s.prText}>PR</Text>}
                     <TouchableOpacity onPress={() => set.id && deleteSet(set.id)} style={{ padding: 6 }}>
-                      <Ionicons name="trash-outline" size={14} color={C.border} />
+                      <Ionicons name="trash-outline" size={14} color={C.muted} />
                     </TouchableOpacity>
                   </View>
                 );
@@ -498,7 +496,6 @@ export default function LogScreen() {
                 placeholderTextColor={C.muted}
                 value={searchQ}
                 onChangeText={setSearchQ}
-                color={C.text}
               />
               {searchQ.length > 0 && (
                 <TouchableOpacity onPress={() => setSearchQ('')}>
@@ -584,7 +581,7 @@ const s = StyleSheet.create({
   exChangeTxt: { color: C.textSub, fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
 
   formCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  formTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  formTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   serieLabel: { fontSize: 11, fontWeight: '900', color: C.textSub, letterSpacing: 2 },
   rmRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rmVal: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
@@ -599,12 +596,12 @@ const s = StyleSheet.create({
   infoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   infoTitle: { fontSize: 10, fontWeight: '800', color: C.textSub, letterSpacing: 1 },
   infoSub: { fontSize: 11, color: C.primary, fontWeight: '800' },
-  logRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, gap: 10 },
+  logRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border, gap: 8 },
   logRowPR: { backgroundColor: C.primaryDim },
   logIdx: { fontSize: 10, color: C.mutedLight, fontWeight: '800', width: 22 },
   logDate: { fontSize: 11, color: C.mutedLight, fontWeight: '700', width: 40 },
   logVal: { fontSize: 14, fontWeight: '800', color: C.text },
-  log1rm: { fontSize: 10, color: C.muted, marginTop: 2 },
+  log1rm: { fontSize: 10, color: C.muted },
   prText: { fontSize: 9, color: C.primary, fontWeight: '900', letterSpacing: 0.5 },
   copyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
   copyTxt: { fontSize: 11, color: C.mutedLight, fontWeight: '700' },

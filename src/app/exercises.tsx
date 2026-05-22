@@ -265,7 +265,6 @@ export default function ExercisesScreen() {
                 onChangeText={v => setForm(f => ({ ...f, name: v }))}
                 placeholder="Ej: Dominadas Prona"
                 placeholderTextColor={C.muted}
-                color={C.text}
               />
 
               <Text style={s.fieldLabel}>CATEGORÍA</Text>
@@ -311,7 +310,6 @@ export default function ExercisesScreen() {
                 onChangeText={v => setForm(f => ({ ...f, muscle_group: v }))}
                 placeholder="Ej: Tríceps, Pecho, Espalda..."
                 placeholderTextColor={C.muted}
-                color={C.text}
               />
 
               <Text style={s.fieldLabel}>NOTAS (opcional)</Text>
@@ -321,7 +319,6 @@ export default function ExercisesScreen() {
                 onChangeText={v => setForm(f => ({ ...f, notes: v }))}
                 placeholder="Tips de técnica..."
                 placeholderTextColor={C.muted}
-                color={C.text}
                 multiline
               />
 
