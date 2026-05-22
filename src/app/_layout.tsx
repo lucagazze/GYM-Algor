@@ -4,6 +4,10 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 
+import { BlurView } from 'expo-blur';
+import { StyleSheet, View } from 'react-native';
+import { C } from '../constants/theme';
+
 export default function RootLayout() {
   return (
     <>
@@ -11,21 +15,40 @@ export default function RootLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
+          tabBarBackground: () => (
+            <View style={StyleSheet.absoluteFill}>
+              <BlurView tint="dark" intensity={80} style={StyleSheet.absoluteFill} />
+              <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(9, 9, 11, 0.7)' }]} />
+            </View>
+          ),
           tabBarStyle: {
-            backgroundColor: '#131313',
-            borderTopColor: '#222',
+            position: 'absolute',
+            bottom: Platform.OS === 'ios' ? 24 : 16,
+            left: 16,
+            right: 16,
+            elevation: 10,
+            backgroundColor: 'transparent',
+            borderRadius: 24,
+            height: 64,
             borderTopWidth: 1,
-            height: Platform.OS === 'ios' ? 88 : 68,
-            paddingBottom: Platform.OS === 'ios' ? 24 : 10,
-            paddingTop: 8,
+            borderTopColor: 'rgba(255,255,255,0.05)',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.05)',
+            paddingBottom: Platform.OS === 'ios' ? 20 : 0,
+            paddingTop: Platform.OS === 'ios' ? 12 : 0,
+            overflow: 'hidden',
           },
-          tabBarActiveTintColor: '#f65b69',
-          tabBarInactiveTintColor: '#444',
+          tabBarItemStyle: {
+            paddingTop: Platform.OS === 'android' ? 8 : 0,
+            paddingBottom: Platform.OS === 'android' ? 8 : 0,
+          },
+          tabBarActiveTintColor: C.primary,
+          tabBarInactiveTintColor: C.muted,
           tabBarLabelStyle: {
             fontSize: 9,
-            fontWeight: '700',
+            fontWeight: '800',
             letterSpacing: 0.5,
-            marginTop: 1,
+            marginTop: 2,
           },
         }}
       >

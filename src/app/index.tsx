@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, createElement } from 'react';
 import {
   StyleSheet, Text, View, TextInput, TouchableOpacity, ScrollView,
-  ActivityIndicator, KeyboardAvoidingView, Platform, Modal, FlatList, Alert,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Modal, FlatList, Alert, Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { workoutService, RM, Exercise, WorkoutLog } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
+import PlateCalculator from '../components/PlateCalculator';
 
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -29,17 +31,24 @@ function fmtTimer(s: number) {
 }
 
 function Stepper({
-  label, value, onChange, step = 1, min = 0, decimals = 0,
+  label, value, onChange, step = 1, min = 0, decimals = 0, onPressCalc
 }: {
   label: string; value: number; onChange: (v: number) => void;
-  step?: number; min?: number; decimals?: number;
+  step?: number; min?: number; decimals?: number; onPressCalc?: () => void;
 }) {
   const fmt = (v: number) => decimals > 0 ? v.toFixed(decimals) : String(v);
   const dec = () => onChange(Math.max(min, Math.round((value - step) * 100) / 100));
   const inc = () => onChange(Math.round((value + step) * 100) / 100);
   return (
     <View style={st.row}>
-      <Text style={st.label}>{label}</Text>
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text style={st.label}>{label}</Text>
+        {onPressCalc && (
+          <TouchableOpacity onPress={onPressCalc} style={st.calcBtn}>
+            <Ionicons name="calculator" size={14} color={C.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
       <View style={st.controls}>
         <TouchableOpacity onPress={dec} style={st.btn} activeOpacity={0.5}>
           <Text style={st.btnTxt}>−</Text>
@@ -66,13 +75,14 @@ function Stepper({
 }
 
 const st = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
-  label: { fontSize: 13, color: C.textSub, fontWeight: '500', flex: 1, letterSpacing: -0.1 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  label: { fontSize: 14, color: C.textSub, fontWeight: '500', letterSpacing: -0.1 },
+  calcBtn: { backgroundColor: C.primaryDim, padding: 4, borderRadius: 6 },
   controls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  btn: { width: 36, height: 36, backgroundColor: C.surfaceHigh, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  btnTxt: { color: C.text, fontSize: 20, fontWeight: '300', lineHeight: 24, marginTop: -1 },
-  valBox: { width: 70, height: 36, backgroundColor: C.bg, borderRadius: 8, justifyContent: 'center' },
-  val: { color: C.text, fontSize: 17, fontWeight: '700', backgroundColor: 'transparent', textAlign: 'center' },
+  btn: { width: 40, height: 40, backgroundColor: C.surfaceHigh, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  btnTxt: { color: C.text, fontSize: 22, fontWeight: '400', lineHeight: 26, marginTop: -1 },
+  valBox: { width: 76, height: 40, backgroundColor: C.bg, borderRadius: 12, justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  val: { color: C.text, fontSize: 18, fontWeight: '700', backgroundColor: 'transparent', textAlign: 'center' },
 });
 
 export default function LogScreen() {
@@ -92,10 +102,14 @@ export default function LogScreen() {
   const [addedW, setAddedW] = useState(0);
   const [repsVal, setRepsVal] = useState(5);
   const [durationVal, setDurationVal] = useState(10);
+  const [notes, setNotes] = useState('');
 
   const [restSecs, setRestSecs] = useState(0);
   const [restActive, setRestActive] = useState(false);
-  const restRef = useRef<any>(null);
+  const [restTarget, setRestTarget] = useState(90);
+  const restRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [calcOpen, setCalcOpen] = useState(false);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
@@ -131,12 +145,20 @@ export default function LogScreen() {
 
   useEffect(() => {
     if (restActive) {
-      restRef.current = setInterval(() => setRestSecs(s => s + 1), 1000);
-    } else {
+      restRef.current = setInterval(() => {
+        setRestSecs(s => {
+          const next = s + 1;
+          if (next === restTarget) {
+            Vibration.vibrate([0, 500, 200, 500, 200, 500]);
+          }
+          return next;
+        });
+      }, 1000);
+    } else if (restRef.current) {
       clearInterval(restRef.current);
     }
-    return () => clearInterval(restRef.current);
-  }, [restActive]);
+    return () => { if (restRef.current) clearInterval(restRef.current); };
+  }, [restActive, restTarget]);
 
   const loadExerciseData = async (exId: number, date?: string) => {
     const targetDate = date ?? logDate;
@@ -161,7 +183,7 @@ export default function LogScreen() {
   const selectExercise = (ex: Exercise) => {
     setSelected(ex);
     setPickerOpen(false);
-    setAddedW(0); setRepsVal(5); setDurationVal(10);
+    setAddedW(0); setRepsVal(5); setDurationVal(10); setNotes('');
     setPrLog(null);
     loadExerciseData(ex.id, logDate);
   };
@@ -184,7 +206,7 @@ export default function LogScreen() {
       reps: repsVal,
       duration_sec: selected.tracking_type === 'time' ? durationVal : 0,
       estimated_1rm: live1rm,
-      rir: 0, notes: '',
+      rir: 0, notes: notes,
       set_number: todaySets.length + 1,
     });
     setSaving(false);
@@ -192,9 +214,15 @@ export default function LogScreen() {
     const newSet = result.data!;
     setTodaySets(prev => [...prev, newSet]);
     setBestEver(prev => Math.max(prev, live1rm || durationVal || repsVal));
-    setAddedW(0); setRepsVal(5);
+    setAddedW(0); setRepsVal(5); setNotes('');
     setRestSecs(0); setRestActive(true);
-    if (newSet.is_pr) Alert.alert('NUEVO RÉCORD', `1RM estimado: ${RM.format(live1rm)} kg`);
+    
+    if (newSet.is_pr) {
+      Vibration.vibrate([0, 100, 50, 100]);
+      Alert.alert('NUEVO RÉCORD', `1RM estimado: ${RM.format(live1rm)} kg`);
+    } else {
+      Vibration.vibrate(50);
+    }
   };
 
   const deleteSet = (id: string) => {
@@ -213,16 +241,17 @@ export default function LogScreen() {
     ]);
   };
 
-  const copyLast = () => {
+  const copyLast = (overload = false) => {
     if (!lastLog || !selected) return;
     if (selected.tracking_type === 'weight') {
-      setAddedW(lastLog.added_weight || 0);
+      setAddedW((lastLog.added_weight || 0) + (overload ? 1.25 : 0));
       setRepsVal(lastLog.reps || 5);
     } else if (selected.tracking_type === 'time') {
-      setDurationVal(lastLog.duration_sec || 10);
+      setDurationVal((lastLog.duration_sec || 10) + (overload ? 5 : 0));
     } else {
-      setRepsVal(lastLog.reps || 5);
+      setRepsVal((lastLog.reps || 5) + (overload ? 1 : 0));
     }
+    Vibration.vibrate(30);
   };
 
   const cats = ['TODOS', 'EMPUJE', 'TRACCION', 'PIERNA', 'SKILL'];
@@ -246,28 +275,37 @@ export default function LogScreen() {
 
   return (
     <SafeAreaView style={s.container} edges={['top','left','right']}>
-      {/* Header */}
       <View style={s.header}>
         <Text style={s.logo}>ALGO<Text style={{ color: C.primary }}>R</Text>LIFT</Text>
         {restActive && (
-          <TouchableOpacity onPress={() => { setRestActive(false); setRestSecs(0); }} style={s.restBadge}>
-            <Ionicons name="timer-outline" size={12} color="#60a5fa" />
-            <Text style={s.restTxt}>{fmtTimer(restSecs)}</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity onPress={() => setRestTarget(t => t === 60 ? 90 : t === 90 ? 120 : t === 120 ? 180 : 60)} style={s.restTargetBtn}>
+              <Text style={s.restTargetTxt}>{restTarget / 60}m</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setRestActive(false); setRestSecs(0); }} style={[s.restBadge, restSecs >= restTarget && { backgroundColor: C.success }]}>
+              <Ionicons name="timer-outline" size={12} color="#fff" />
+              <Text style={s.restTxt}>{fmtTimer(restSecs)}</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
 
-          {/* Date nav */}
           <View style={s.dateBar}>
             <TouchableOpacity onPress={() => changeDate(-1)} style={s.dateArrow}>
               <Ionicons name="chevron-back" size={18} color={C.muted} />
             </TouchableOpacity>
-            <View style={s.dateCenter}>
+            <View style={[s.dateCenter, { position: 'relative' }]}>
               <Text style={s.dateText}>{fmtDisplayDate(logDate)}</Text>
               {isToday && <View style={s.todayDot} />}
+              {Platform.OS === 'web' && createElement('input', {
+                type: 'date',
+                style: { opacity: 0, position: 'absolute', width: '100%', height: '100%', top: 0, left: 0, cursor: 'pointer' },
+                value: logDate,
+                onChange: (e: any) => e.target.value && setLogDate(e.target.value)
+              })}
             </View>
             <TouchableOpacity onPress={() => changeDate(1)} style={[s.dateArrow, isToday && { opacity: 0.2 }]} disabled={isToday}>
               <Ionicons name="chevron-forward" size={18} color={C.muted} />
@@ -279,7 +317,6 @@ export default function LogScreen() {
             )}
           </View>
 
-          {/* Exercise selector */}
           <TouchableOpacity style={s.exCard} onPress={() => setPickerOpen(true)} activeOpacity={0.85}>
             <View style={[s.exBar, { backgroundColor: catColor }]} />
             <View style={{ flex: 1, paddingLeft: 12 }}>
@@ -293,9 +330,7 @@ export default function LogScreen() {
             </View>
           </TouchableOpacity>
 
-          {/* Form card */}
           <View style={s.formCard}>
-            {/* Top row: serie + 1RM */}
             <View style={s.formTop}>
               <Text style={s.serieLabel}>SERIE {todaySets.length + 1}</Text>
               {selected?.tracking_type === 'weight' && (
@@ -311,11 +346,10 @@ export default function LogScreen() {
               )}
             </View>
 
-            {/* Inputs */}
             {selected?.tracking_type === 'weight' && (
               <>
                 <Stepper label="Peso corporal" value={bodyW} onChange={setBodyW} step={0.5} min={0} decimals={1} />
-                <Stepper label="Lastre (kg)" value={addedW} onChange={setAddedW} step={2.5} min={0} decimals={1} />
+                <Stepper label="Lastre (kg)" value={addedW} onChange={setAddedW} step={0.5} min={0} decimals={1} onPressCalc={() => setCalcOpen(true)} />
                 <Stepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
               </>
             )}
@@ -325,22 +359,33 @@ export default function LogScreen() {
             {selected?.tracking_type === 'reps' && (
               <Stepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
             )}
+            
+            <TextInput
+              style={s.notesInput}
+              placeholder="Notas de la serie (ej. RIR 2, técnica ok)..."
+              placeholderTextColor={C.muted}
+              value={notes}
+              onChangeText={setNotes}
+            />
 
-            {/* Save button */}
             <TouchableOpacity
-              style={[s.saveBtn, saving && { opacity: 0.6 }]}
               onPress={handleSave}
               disabled={saving}
               activeOpacity={0.85}
             >
-              {saving
-                ? <ActivityIndicator color="#fff" size="small" />
-                : <Text style={s.saveBtnTxt}>+ ANOTAR SERIE</Text>
-              }
+              <LinearGradient
+                colors={[C.primary, '#D91646']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                style={[s.saveBtn, saving && { opacity: 0.6 }]}
+              >
+                {saving
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={s.saveBtnTxt}>+ ANOTAR SERIE</Text>
+                }
+              </LinearGradient>
             </TouchableOpacity>
           </View>
 
-          {/* Today's sets */}
           {todaySets.length > 0 && (
             <View style={s.infoCard}>
               <View style={s.infoHeader}>
@@ -371,11 +416,10 @@ export default function LogScreen() {
             </View>
           )}
 
-          {/* Recent history */}
           {selected && (recentLogs.length > 0 || lastLog) && (
             <View style={s.infoCard}>
               <View style={s.infoHeader}>
-                <Text style={s.infoTitle}>ÚLTIMAS SESIONES</Text>
+                <Text style={s.infoTitle}>MEJOR Y ÚLTIMAS SESIONES</Text>
                 {bestEver > 0 && (
                   <Text style={s.infoSub}>
                     PR {selected.tracking_type === 'weight'
@@ -385,8 +429,7 @@ export default function LogScreen() {
                   </Text>
                 )}
               </View>
-              {/* PR record row — shown only if the PR log isn't already in recent list */}
-              {prLog && !recentLogs.some(l => l.id === prLog.id) && prLog.id !== lastLog?.id && (
+              {prLog && (
                 <View style={[s.logRow, s.logRowPR]}>
                   <View style={s.prChip}><Text style={s.prChipTxt}>PR</Text></View>
                   <Text style={s.logDate}>{fmtShortDate(prLog.date)}</Text>
@@ -401,30 +444,34 @@ export default function LogScreen() {
                   )}
                 </View>
               )}
-              {(lastLog ? [lastLog, ...recentLogs.filter(l => l.date !== lastLog.date)] : recentLogs)
-                .slice(0, 5)
+              {recentLogs
+                .slice(0, 10)
                 .map((log, i) => {
                   const val = selected.tracking_type === 'weight'
                     ? `+${log.added_weight} kg × ${log.reps} reps`
                     : selected.tracking_type === 'time' ? `${log.duration_sec}s`
                     : `${log.reps} reps`;
-                  const isPR = log.is_pr;
                   return (
-                    <View key={log.id ?? i} style={[s.logRow, isPR && s.logRowPR]}>
-                      {isPR && <View style={s.prChip}><Text style={s.prChipTxt}>PR</Text></View>}
+                    <View key={log.id ?? i} style={s.logRow}>
                       <Text style={s.logDate}>{fmtShortDate(log.date)}</Text>
-                      <Text style={[s.logVal, { flex: 1, color: isPR ? C.primary : C.text }]}>{val}</Text>
+                      <Text style={[s.logVal, { flex: 1, color: C.text }]}>{val}</Text>
                       {selected.tracking_type === 'weight' && log.estimated_1rm > 0 && (
-                        <Text style={[s.log1rm, isPR && { color: C.primary }]}>{Number(log.estimated_1rm).toFixed(1)} kg</Text>
+                        <Text style={s.log1rm}>{Number(log.estimated_1rm).toFixed(1)} kg</Text>
                       )}
                     </View>
                   );
                 })}
               {lastLog && (
-                <TouchableOpacity style={s.copyRow} onPress={copyLast}>
-                  <Ionicons name="copy-outline" size={12} color={C.muted} />
-                  <Text style={s.copyTxt}>Copiar último en mis inputs</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingBottom: 10 }}>
+                  <TouchableOpacity style={s.copyRow} onPress={() => copyLast(false)}>
+                    <Ionicons name="copy-outline" size={12} color={C.muted} />
+                    <Text style={s.copyTxt}>Copiar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[s.copyRow, { borderColor: C.primary, backgroundColor: C.primaryDim }]} onPress={() => copyLast(true)}>
+                    <Ionicons name="rocket-outline" size={12} color={C.primary} />
+                    <Text style={[s.copyTxt, { color: C.primary, fontWeight: '800' }]}>Sobrecarga (+)</Text>
+                  </TouchableOpacity>
+                </View>
               )}
             </View>
           )}
@@ -433,7 +480,6 @@ export default function LogScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Exercise Picker */}
       <Modal visible={pickerOpen} animationType="slide" transparent>
         <View style={s.overlay}>
           <SafeAreaView style={s.sheet}>
@@ -460,8 +506,10 @@ export default function LogScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 7, paddingHorizontal: 14, paddingBottom: 8 }}>
+            <View style={{ marginBottom: 12 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}
+                style={{ flexGrow: 0 }}
+                contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 4 }}>
               {cats.map(c => (
                 <TouchableOpacity key={c}
                   style={[s.catChip, filterCat === c && s.catChipActive]}
@@ -469,7 +517,8 @@ export default function LogScreen() {
                   <Text style={[s.catChipTxt, filterCat === c && { color: C.primary }]}>{c}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+              </ScrollView>
+            </View>
             <FlatList
               data={filteredExercises}
               keyExtractor={item => String(item.id)}
@@ -498,72 +547,81 @@ export default function LogScreen() {
           </SafeAreaView>
         </View>
       </Modal>
+
+      <PlateCalculator 
+        visible={calcOpen} 
+        onClose={() => setCalcOpen(false)} 
+        weight={addedW} 
+      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-  logo: { fontSize: 17, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
-  restBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#0d1f3c', borderWidth: 1, borderColor: '#1e4080', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 4 },
-  restTxt: { color: '#60a5fa', fontSize: 12, fontWeight: '700' },
-  scroll: { padding: 12, paddingBottom: 50, gap: 8 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  restBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.borderLight, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
+  restTxt: { color: C.traccion, fontSize: 11, fontWeight: '800' },
+  restTargetBtn: { backgroundColor: C.surfaceHigh, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border },
+  restTargetTxt: { fontSize: 10, color: C.mutedLight, fontWeight: '800' },
+  scroll: { padding: 12, paddingBottom: 100, gap: 10 },
 
-  dateBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingVertical: 2, paddingHorizontal: 2 },
-  dateArrow: { padding: 9 },
-  dateCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
-  dateText: { fontSize: 13, fontWeight: '700', color: C.textSub },
-  todayDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: C.primary },
-  todayBtn: { paddingHorizontal: 9, paddingVertical: 5, backgroundColor: C.primary + '18', borderRadius: 7, marginRight: 4 },
-  todayBtnTxt: { fontSize: 9, color: C.primary, fontWeight: '800', letterSpacing: 0.8 },
+  dateBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderRadius: 14, paddingVertical: 4, paddingHorizontal: 6, borderWidth: 1, borderColor: C.border },
+  dateArrow: { padding: 8 },
+  dateCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  dateText: { fontSize: 13, fontWeight: '800', color: C.text, letterSpacing: 0.2 },
+  todayDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.primary },
+  todayBtn: { paddingHorizontal: 10, paddingVertical: 4, backgroundColor: C.primaryDim, borderRadius: 8, marginRight: 4 },
+  todayBtnTxt: { fontSize: 9, color: C.primary, fontWeight: '900', letterSpacing: 1 },
 
-  exCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden', minHeight: 60 },
-  exBar: { width: 3, alignSelf: 'stretch' },
-  exLabel: { fontSize: 8, color: C.muted, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 },
-  exName: { fontSize: 16, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
-  exCat: { fontSize: 10, fontWeight: '700', marginTop: 1 },
-  exChangeBtn: { alignItems: 'center', backgroundColor: C.primary + '14', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, gap: 2, marginRight: 10 },
-  exChangeTxt: { color: C.primary, fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
+  exCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden', minHeight: 64 },
+  exBar: { width: 4, alignSelf: 'stretch' },
+  exLabel: { fontSize: 8, color: C.muted, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 },
+  exName: { fontSize: 16, fontWeight: '800', color: C.text, letterSpacing: -0.5 },
+  exCat: { fontSize: 10, fontWeight: '800', marginTop: 2, letterSpacing: 0.5 },
+  exChangeBtn: { alignItems: 'center', backgroundColor: C.surfaceHigh, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 2, marginRight: 10 },
+  exChangeTxt: { color: C.textSub, fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
 
-  formCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
-  formTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-  serieLabel: { fontSize: 10, fontWeight: '800', color: C.muted, letterSpacing: 2, textTransform: 'uppercase' },
+  formCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  formTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  serieLabel: { fontSize: 11, fontWeight: '900', color: C.textSub, letterSpacing: 2 },
   rmRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rmVal: { fontSize: 20, fontWeight: '900', color: C.text, letterSpacing: -0.8 },
-  rmSub: { fontSize: 10, color: C.muted, fontWeight: '600', marginTop: 2 },
-  prChip: { backgroundColor: C.primary, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
-  prChipTxt: { fontSize: 8, color: '#fff', fontWeight: '900', letterSpacing: 0.5 },
-  saveBtn: { backgroundColor: C.primary, height: 46, alignItems: 'center', justifyContent: 'center' },
-  saveBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 13, letterSpacing: 1.5 },
+  rmVal: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  rmSub: { fontSize: 10, color: C.muted, fontWeight: '700', marginTop: 2 },
+  prChip: { backgroundColor: C.primary, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3, marginRight: 8 },
+  prChipTxt: { fontSize: 9, color: '#fff', fontWeight: '900', letterSpacing: 1 },
+  saveBtn: { height: 42, alignItems: 'center', justifyContent: 'center' },
+  saveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
+  notesInput: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, color: C.text, fontSize: 12, paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 14, marginTop: 8, marginBottom: 12 },
 
-  infoCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden' },
+  infoCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
   infoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-  infoTitle: { fontSize: 9, fontWeight: '800', color: C.muted, letterSpacing: 1.5 },
-  infoSub: { fontSize: 11, color: C.primary, fontWeight: '700' },
+  infoTitle: { fontSize: 10, fontWeight: '800', color: C.textSub, letterSpacing: 1 },
+  infoSub: { fontSize: 11, color: C.primary, fontWeight: '800' },
   logRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, gap: 10 },
-  logRowPR: { backgroundColor: C.primary + '08' },
-  logIdx: { fontSize: 10, color: C.muted, fontWeight: '700', width: 18 },
-  logDate: { fontSize: 11, color: C.muted, fontWeight: '600', width: 36 },
-  logVal: { fontSize: 13, fontWeight: '700', color: C.text },
-  log1rm: { fontSize: 10, color: C.muted, marginTop: 1 },
+  logRowPR: { backgroundColor: C.primaryDim },
+  logIdx: { fontSize: 10, color: C.mutedLight, fontWeight: '800', width: 22 },
+  logDate: { fontSize: 11, color: C.mutedLight, fontWeight: '700', width: 40 },
+  logVal: { fontSize: 14, fontWeight: '800', color: C.text },
+  log1rm: { fontSize: 10, color: C.muted, marginTop: 2 },
   prText: { fontSize: 9, color: C.primary, fontWeight: '900', letterSpacing: 0.5 },
-  copyRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
-  copyTxt: { fontSize: 11, color: C.muted, fontWeight: '600' },
+  copyRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 10 },
+  copyTxt: { fontSize: 11, color: C.mutedLight, fontWeight: '700' },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: C.surface, height: '90%', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderTopColor: C.border },
-  sheetHandle: { width: 36, height: 3, backgroundColor: C.border, borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 4 },
+  sheetHandle: { width: 40, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 6 },
   sheetHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-  sheetTitle: { fontSize: 15, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
+  sheetTitle: { fontSize: 16, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
   closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, margin: 12, paddingHorizontal: 12, height: 38, borderRadius: 10, borderWidth: 1, borderColor: C.border },
-  searchInput: { flex: 1, fontSize: 13 },
-  catChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border },
-  catChipActive: { borderColor: C.primary + '60', backgroundColor: C.primary + '12' },
-  catChipTxt: { color: C.muted, fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  pickerItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, gap: 10 },
-  pickerDot: { width: 7, height: 7, borderRadius: 4 },
-  pickerName: { fontSize: 13, fontWeight: '700', color: C.text },
-  pickerSub: { fontSize: 10, color: C.muted, marginTop: 2, fontWeight: '500' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, margin: 12, paddingHorizontal: 12, height: 40, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+  searchInput: { flex: 1, fontSize: 14 },
+  catChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border },
+  catChipActive: { borderColor: C.primary, backgroundColor: C.primaryDim },
+  catChipTxt: { color: C.textSub, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  pickerItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 12, gap: 10 },
+  pickerDot: { width: 8, height: 8, borderRadius: 4 },
+  pickerName: { fontSize: 14, fontWeight: '800', color: C.text },
+  pickerSub: { fontSize: 10, color: C.muted, marginTop: 4, fontWeight: '600' },
 });

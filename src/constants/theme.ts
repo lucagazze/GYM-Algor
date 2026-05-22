@@ -12,32 +12,32 @@ export const Spacing = {
 } as const;
 
 const _theme = {
-  text: '#e5e2e1',
-  textSecondary: '#888',
-  background: '#131313',
-  backgroundElement: '#1a1a1a',
-  border: '#2a2a2a',
+  text: '#FAFAFA',
+  textSecondary: '#A1A1AA',
+  background: '#09090B',
+  backgroundElement: '#18181B',
+  border: '#3F3F46',
 };
 export const Colors = { light: _theme, dark: _theme };
 
 export const C = {
-  bg: '#131313',
-  surface: '#1a1a1a',
-  surfaceHigh: '#252525',
-  border: '#2a2a2a',
-  borderLight: '#333',
-  primary: '#f65b69',
-  primaryDim: '#ffb3b4',
-  text: '#e5e2e1',
-  textSub: '#c8c6c5',
-  muted: '#999',
-  mutedLight: '#bbb',
-  success: '#4ADE80',
-  error: '#ff6b6b',
-  empuje: '#f65b69',
-  traccion: '#60a5fa',
-  pierna: '#34d399',
-  skill: '#fbbf24',
+  bg: '#09090B',
+  surface: '#18181B',
+  surfaceHigh: '#27272A',
+  border: '#27272A',
+  borderLight: '#3F3F46',
+  primary: '#FF2A5F',
+  primaryDim: '#FF2A5F33',
+  text: '#FAFAFA',
+  textSub: '#A1A1AA',
+  muted: '#71717A',
+  mutedLight: '#A1A1AA',
+  success: '#10B981',
+  error: '#EF4444',
+  empuje: '#FF2A5F',
+  traccion: '#00E5FF',
+  pierna: '#A855F7',
+  skill: '#EAB308',
 } as const;
 
 export const CAT_COLOR: Record<string, string> = {

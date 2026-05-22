@@ -407,6 +407,39 @@ export const workoutService = {
   },
 
   // ── Progression Plans ─────────────────────────────────────────
+  async getActiveDays(): Promise<string[]> {
+    try {
+      const { data } = await supabase.from('workout_logs').select('date').order('date', { ascending: false });
+      if (!data) return [];
+      const set = new Set<string>();
+      for (const row of data) set.add(row.date);
+      return Array.from(set);
+    } catch { return []; }
+  },
+
+  async getWeeklyVolumeByCategory(): Promise<{ category: string; sets: number }[]> {
+    try {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      const sevenDaysAgo = d.toISOString().split('T')[0];
+      
+      const { data, error } = await supabase
+        .from('workout_logs')
+        .select('*, exercise:exercises(*)')
+        .gte('date', sevenDaysAgo);
+        
+      if (error || !data) return [];
+      
+      const counts: Record<string, number> = { EMPUJE: 0, TRACCION: 0, PIERNA: 0, SKILL: 0 };
+      for (const row of data) {
+        if (row.exercise && row.exercise.category) {
+          counts[row.exercise.category] = (counts[row.exercise.category] || 0) + 1;
+        }
+      }
+      return Object.entries(counts).map(([category, sets]) => ({ category, sets }));
+    } catch { return []; }
+  },
+
   async getProgressionPlans(): Promise<ProgressionPlan[]> {
     try {
       const { data, error } = await supabase

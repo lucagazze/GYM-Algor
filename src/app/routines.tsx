@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity, TextInput,
-  Modal, Alert, ActivityIndicator, FlatList, Platform,
+  Modal, Alert, ActivityIndicator, FlatList, Platform, Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { C, CAT_COLOR } from '../constants/theme';
 import { routineService, Routine, ActiveSession } from '../utils/routineService';
 import { workoutService, Exercise, WorkoutLog, RM } from '../utils/workoutService';
+import PlateCalculator from '../components/PlateCalculator';
 
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 function fmtTimer(s: number) {
@@ -22,16 +24,23 @@ function fmtShortDate(d: string) {
   return p.length === 3 ? `${p[2]}/${p[1]}` : d;
 }
 
-function RowStepper({ label, value, onChange, step = 1, min = 0, decimals = 0 }: {
+function RowStepper({ label, value, onChange, step = 1, min = 0, decimals = 0, onPressCalc }: {
   label: string; value: number; onChange: (v: number) => void;
-  step?: number; min?: number; decimals?: number;
+  step?: number; min?: number; decimals?: number; onPressCalc?: () => void;
 }) {
   const fmt = (v: number) => decimals > 0 ? v.toFixed(decimals) : String(v);
   const dec = () => onChange(Math.max(min, Math.round((value - step) * 100) / 100));
   const inc = () => onChange(Math.round((value + step) * 100) / 100);
   return (
     <View style={rs.row}>
-      <Text style={rs.label}>{label}</Text>
+      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text style={rs.label}>{label}</Text>
+        {onPressCalc && (
+          <TouchableOpacity onPress={onPressCalc} style={rs.calcBtn}>
+            <Ionicons name="calculator" size={14} color={C.primary} />
+          </TouchableOpacity>
+        )}
+      </View>
       <View style={rs.stepper}>
         <TouchableOpacity onPress={dec} style={rs.btn} activeOpacity={0.5}>
           <Text style={rs.btnTxt}>−</Text>
@@ -57,13 +66,14 @@ function RowStepper({ label, value, onChange, step = 1, min = 0, decimals = 0 }:
   );
 }
 const rs = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: C.border },
-  label: { fontSize: 13, color: C.textSub, fontWeight: '500', flex: 1, letterSpacing: -0.1 },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  label: { fontSize: 14, color: C.textSub, fontWeight: '500', letterSpacing: -0.1 },
+  calcBtn: { backgroundColor: C.primaryDim, padding: 4, borderRadius: 6 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  btn: { width: 36, height: 36, backgroundColor: C.surfaceHigh, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  btnTxt: { color: C.text, fontSize: 20, fontWeight: '300', lineHeight: 24, marginTop: -1 },
-  valBox: { width: 70, height: 36, backgroundColor: C.bg, borderRadius: 8, justifyContent: 'center' },
-  val: { color: C.text, fontSize: 17, fontWeight: '700', backgroundColor: 'transparent', textAlign: 'center' },
+  btn: { width: 40, height: 40, backgroundColor: C.surfaceHigh, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  btnTxt: { color: C.text, fontSize: 22, fontWeight: '400', lineHeight: 26, marginTop: -1 },
+  valBox: { width: 76, height: 40, backgroundColor: C.bg, borderRadius: 12, justifyContent: 'center', borderWidth: 1, borderColor: C.border },
+  val: { color: C.text, fontSize: 18, fontWeight: '700', backgroundColor: 'transparent', textAlign: 'center' },
 });
 
 export default function RoutinesScreen() {
@@ -71,8 +81,9 @@ export default function RoutinesScreen() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Create routine modal
+  // Create / Edit routine modal
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingRoutineId, setEditingRoutineId] = useState<string | null>(null);
   const [routineName, setRoutineName] = useState('');
   const [selectedExIds, setSelectedExIds] = useState<number[]>([]);
   const [exPickerOpen, setExPickerOpen] = useState(false);
@@ -92,9 +103,32 @@ export default function RoutinesScreen() {
   const [addedW, setAddedW] = useState(0);
   const [repsVal, setRepsVal] = useState(5);
   const [durVal, setDurVal] = useState(10);
+  const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [restActive, setRestActive] = useState(false);
+  const [restSecs, setRestSecs] = useState(0);
+  const [restTarget, setRestTarget] = useState(90);
+  const restRef = useRef<NodeJS.Timeout | null>(null);
+
+  const [calcOpen, setCalcOpen] = useState(false);
+
   useFocusEffect(useCallback(() => { load(); }, []));
+
+  useEffect(() => {
+    if (restActive) {
+      restRef.current = setInterval(() => {
+        setRestSecs(s => {
+          const next = s + 1;
+          if (next === restTarget) {
+            Vibration.vibrate([0, 500, 200, 500, 200, 500]);
+          }
+          return next;
+        });
+      }, 1000);
+    } else if (restRef.current) clearInterval(restRef.current);
+    return () => { if (restRef.current) clearInterval(restRef.current); };
+  }, [restActive, restTarget]);
 
   const load = async () => {
     setLoading(true);
@@ -113,15 +147,29 @@ export default function RoutinesScreen() {
 
   // ── Create routine ──────────────────────────────────────────────
   const openCreate = () => {
+    setEditingRoutineId(null);
     setRoutineName('');
     setSelectedExIds([]);
+    setCreateOpen(true);
+  };
+
+  const openEdit = (r: Routine) => {
+    setEditingRoutineId(r.id);
+    setRoutineName(r.name);
+    setSelectedExIds([...r.exerciseIds]);
     setCreateOpen(true);
   };
 
   const saveRoutine = async () => {
     if (!routineName.trim()) { Alert.alert('Falta el nombre'); return; }
     if (selectedExIds.length === 0) { Alert.alert('Agrega al menos un ejercicio'); return; }
-    await routineService.create(routineName.trim(), selectedExIds);
+    
+    if (editingRoutineId) {
+      await routineService.update(editingRoutineId, { name: routineName.trim(), exerciseIds: selectedExIds });
+    } else {
+      await routineService.create(routineName.trim(), selectedExIds);
+    }
+    
     setCreateOpen(false);
     load();
   };
@@ -147,6 +195,15 @@ export default function RoutinesScreen() {
     );
   };
 
+  const moveEx = (idx: number, dir: -1 | 1) => {
+    const arr = [...selectedExIds];
+    if (idx + dir < 0 || idx + dir >= arr.length) return;
+    const temp = arr[idx];
+    arr[idx] = arr[idx + dir];
+    arr[idx + dir] = temp;
+    setSelectedExIds(arr);
+  };
+
   // ── Session ─────────────────────────────────────────────────────
   const startSession = async (routine: Routine) => {
     const sess: ActiveSession = {
@@ -166,7 +223,7 @@ export default function RoutinesScreen() {
 
   const loadSessionExData = async (sess: ActiveSession, idx: number) => {
     const exId = sess.exerciseIds[idx];
-    setAddedW(0); setRepsVal(5); setDurVal(10);
+    setAddedW(0); setRepsVal(5); setDurVal(10); setNotes('');
     const [last, today] = await Promise.all([
       workoutService.getLastLog(exId),
       workoutService.getTodayLogs(exId, todayStr()),
@@ -213,23 +270,31 @@ export default function RoutinesScreen() {
       duration_sec: ex.tracking_type === 'time' ? durVal : 0,
       estimated_1rm: live1rm,
       rir: 0,
-      notes: '',
+      notes: notes,
       set_number: todaySets.length + 1,
     });
     setSaving(false);
     if (result.data) {
       setTodaySets(prev => [...prev, result.data!]);
-      if (result.data.is_pr) Alert.alert('🏆 RÉCORD', `1RM: ${RM.format(live1rm)} kg`);
+      setNotes('');
+      setRestSecs(0); setRestActive(true);
+      if (result.data.is_pr) {
+        Vibration.vibrate([0, 100, 50, 100]);
+        Alert.alert('🏆 RÉCORD', `1RM: ${RM.format(live1rm)} kg`);
+      } else {
+        Vibration.vibrate(50);
+      }
     }
   };
 
-  const copyLastToSession = () => {
+  const copyLastToSession = (overload = false) => {
     if (!lastLog || !session) return;
     const ex = getEx(session.exerciseIds[session.currentIdx]);
     if (!ex) return;
-    if (ex.tracking_type === 'weight') { setAddedW(lastLog.added_weight||0); setRepsVal(lastLog.reps||5); }
-    else if (ex.tracking_type === 'time') setDurVal(lastLog.duration_sec||10);
-    else setRepsVal(lastLog.reps||5);
+    if (ex.tracking_type === 'weight') { setAddedW((lastLog.added_weight||0) + (overload ? 1.25 : 0)); setRepsVal(lastLog.reps||5); }
+    else if (ex.tracking_type === 'time') setDurVal((lastLog.duration_sec||10) + (overload ? 5 : 0));
+    else setRepsVal((lastLog.reps||5) + (overload ? 1 : 0));
+    Vibration.vibrate(30);
   };
 
   const confirmEndSession = () => {
@@ -291,6 +356,9 @@ export default function RoutinesScreen() {
                   <Text style={s.routineName}>{r.name}</Text>
                   <Text style={s.routineExCount}>{r.exerciseIds.length} ejercicio{r.exerciseIds.length !== 1 ? 's' : ''}</Text>
                 </View>
+                <TouchableOpacity onPress={() => openEdit(r)} style={[s.delBtn, { marginRight: 8 }]}>
+                  <Ionicons name="pencil-outline" size={18} color={C.muted} />
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => deleteRoutine(r.id, r.name)} style={s.delBtn}>
                   <Ionicons name="trash-outline" size={18} color="#3a3a3a" />
                 </TouchableOpacity>
@@ -312,9 +380,15 @@ export default function RoutinesScreen() {
                 )}
               </View>
 
-              <TouchableOpacity style={s.startBtn} onPress={() => startSession(r)} activeOpacity={0.8}>
-                <Ionicons name="play" size={18} color="#fff" />
-                <Text style={s.startBtnTxt}>EMPEZAR SESIÓN</Text>
+              <TouchableOpacity onPress={() => startSession(r)} activeOpacity={0.8}>
+                <LinearGradient
+                  colors={[C.primary, '#D91646']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={s.startBtn}
+                >
+                  <Ionicons name="play" size={18} color="#fff" />
+                  <Text style={s.startBtnTxt}>EMPEZAR SESIÓN</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </View>
           ))
@@ -327,7 +401,7 @@ export default function RoutinesScreen() {
           <SafeAreaView style={s.sheet}>
             <View style={s.sheetHandle} />
             <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>Nueva Rutina</Text>
+              <Text style={s.sheetTitle}>{editingRoutineId ? 'Editar Rutina' : 'Nueva Rutina'}</Text>
               <TouchableOpacity onPress={() => setCreateOpen(false)} style={s.closeBtn}>
                 <Ionicons name="close" size={20} color={C.text} />
               </TouchableOpacity>
@@ -351,9 +425,18 @@ export default function RoutinesScreen() {
                     <Text style={s.selectedExNum}>{i+1}</Text>
                     <View style={[s.selDot, { backgroundColor: cc }]} />
                     <Text style={s.selectedExName} numberOfLines={1}>{ex?.name ?? `Ejercicio ${id}`}</Text>
-                    <TouchableOpacity onPress={() => toggleExInRoutine(id)}>
-                      <Ionicons name="close-circle" size={20} color="#444" />
-                    </TouchableOpacity>
+                    
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                      <TouchableOpacity onPress={() => moveEx(i, -1)} style={{ padding: 4 }} disabled={i === 0}>
+                        <Ionicons name="arrow-up" size={16} color={i === 0 ? C.surfaceHigh : C.textSub} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => moveEx(i, 1)} style={{ padding: 4 }} disabled={i === selectedExIds.length - 1}>
+                        <Ionicons name="arrow-down" size={16} color={i === selectedExIds.length - 1 ? C.surfaceHigh : C.textSub} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => toggleExInRoutine(id)} style={{ padding: 4, marginLeft: 4 }}>
+                        <Ionicons name="close-circle" size={20} color={C.muted} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 );
               })}
@@ -361,9 +444,10 @@ export default function RoutinesScreen() {
                 <Ionicons name="add" size={18} color={C.muted} />
                 <Text style={s.addExBtnTxt}>Agregar ejercicio</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity style={s.saveBtn} onPress={saveRoutine} activeOpacity={0.8}>
-                <Text style={s.saveBtnTxt}>CREAR RUTINA</Text>
+              <TouchableOpacity onPress={saveRoutine} activeOpacity={0.8}>
+                <LinearGradient colors={[C.primary, '#D91646']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.saveBtn}>
+                  <Text style={s.saveBtnTxt}>{editingRoutineId ? 'GUARDAR CAMBIOS' : 'CREAR RUTINA'}</Text>
+                </LinearGradient>
               </TouchableOpacity>
             </ScrollView>
           </SafeAreaView>
@@ -391,10 +475,12 @@ export default function RoutinesScreen() {
                 onChangeText={setExSearch}
               />
             </View>
-            <ScrollView
-              horizontal showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingHorizontal: 14, paddingBottom: 8 }}
-            >
+            <View style={{ marginBottom: 12 }}>
+              <ScrollView
+                horizontal showsHorizontalScrollIndicator={false}
+                style={{ flexGrow: 0 }}
+                contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 4 }}
+              >
               {cats.map(c => (
                 <TouchableOpacity
                   key={c}
@@ -404,7 +490,8 @@ export default function RoutinesScreen() {
                   <Text style={[s.catChipTxt, exCatFilter === c && { color: C.primaryDim }]}>{c}</Text>
                 </TouchableOpacity>
               ))}
-            </ScrollView>
+              </ScrollView>
+            </View>
             <FlatList
               data={filteredExForPicker}
               keyExtractor={item => String(item.id)}
@@ -448,11 +535,23 @@ export default function RoutinesScreen() {
                 {/* Session header */}
                 <View style={s.sessHeader}>
                   <TouchableOpacity onPress={confirmEndSession} style={s.sessEndBtn}>
-                    <Ionicons name="close" size={16} color={C.muted} />
+                    <Ionicons name="close" size={18} color={C.muted} />
                     <Text style={s.sessEndBtnTxt}>Terminar</Text>
                   </TouchableOpacity>
-                  <Text style={s.sessRoutineName}>{session.routineName}</Text>
-                  <Text style={s.sessTimer}>{fmtTimer(sessionSecs)}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    {restActive && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <TouchableOpacity onPress={() => setRestTarget(t => t === 60 ? 90 : t === 90 ? 120 : t === 120 ? 180 : 60)} style={s.restTargetBtn}>
+                          <Text style={s.restTargetTxt}>{restTarget / 60}m</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => { setRestActive(false); setRestSecs(0); }} style={[s.restBadge, restSecs >= restTarget && { backgroundColor: C.success }]}>
+                          <Ionicons name="timer-outline" size={12} color="#fff" />
+                          <Text style={s.restTxt}>{fmtTimer(restSecs)}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                    <Text style={s.sessTimer}>{fmtTimer(sessionSecs)}</Text>
+                  </View>
                 </View>
 
                 {/* Progress bar */}
@@ -491,7 +590,7 @@ export default function RoutinesScreen() {
                     {ex?.tracking_type === 'weight' && (
                       <>
                         <RowStepper label="Peso corporal" value={bodyW} onChange={setBodyW} step={0.5} min={0} decimals={1} />
-                        <RowStepper label="Lastre (kg)" value={addedW} onChange={setAddedW} step={2.5} min={0} decimals={1} />
+                        <RowStepper label="Lastre (kg)" value={addedW} onChange={setAddedW} step={0.5} min={0} decimals={1} onPressCalc={() => setCalcOpen(true)} />
                         <RowStepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
                       </>
                     )}
@@ -501,10 +600,25 @@ export default function RoutinesScreen() {
                     {ex?.tracking_type === 'reps' && (
                       <RowStepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
                     )}
-                    <TouchableOpacity style={[s.sessSaveBtn, saving && { opacity: 0.6 }]} onPress={sessionLogSet} disabled={saving} activeOpacity={0.8}>
-                      {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-                        <Text style={s.sessSaveBtnTxt}>+ ANOTAR SERIE</Text>
-                      )}
+
+                    <TextInput
+                      style={s.notesInput}
+                      placeholder="Notas de la serie (ej. RIR 2, técnica ok)..."
+                      placeholderTextColor={C.muted}
+                      value={notes}
+                      onChangeText={setNotes}
+                    />
+
+                    <TouchableOpacity onPress={sessionLogSet} disabled={saving} activeOpacity={0.8}>
+                      <LinearGradient
+                        colors={[C.primary, '#D91646']}
+                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                        style={[s.sessSaveBtn, saving && { opacity: 0.6 }]}
+                      >
+                        {saving ? <ActivityIndicator color="#fff" size="small" /> : (
+                          <Text style={s.sessSaveBtnTxt}>+ ANOTAR SERIE</Text>
+                        )}
+                      </LinearGradient>
                     </TouchableOpacity>
                   </View>
 
@@ -529,16 +643,16 @@ export default function RoutinesScreen() {
                         );
                       })}
                       {lastLog && ex && (
-                        <TouchableOpacity style={s.lastRef} onPress={copyLastToSession} activeOpacity={0.7}>
-                          <Ionicons name="copy-outline" size={11} color={C.muted} />
-                          <Text style={s.lastRefLabel}>
-                            {fmtShortDate(lastLog.date)} · {ex.tracking_type === 'weight'
-                              ? `+${lastLog.added_weight} kg × ${lastLog.reps} reps`
-                              : ex.tracking_type === 'time' ? `${lastLog.duration_sec}s` : `${lastLog.reps} reps`}
-                            {lastLog.estimated_1rm > 0 ? `  →  ${Number(lastLog.estimated_1rm).toFixed(1)} kg` : ''}
-                            {'  ·  Copiar'}
-                          </Text>
-                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingBottom: 10 }}>
+                          <TouchableOpacity style={s.copyRow} onPress={() => copyLastToSession(false)} activeOpacity={0.7}>
+                            <Ionicons name="copy-outline" size={11} color={C.muted} />
+                            <Text style={s.copyTxt}>Copiar {fmtShortDate(lastLog.date)}</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity style={[s.copyRow, { borderColor: C.primary, backgroundColor: C.primaryDim }]} onPress={() => copyLastToSession(true)} activeOpacity={0.7}>
+                            <Ionicons name="rocket-outline" size={11} color={C.primary} />
+                            <Text style={[s.copyTxt, { color: C.primary, fontWeight: '800' }]}>Sobrecarga (+)</Text>
+                          </TouchableOpacity>
+                        </View>
                       )}
                     </View>
                   )}
@@ -570,110 +684,121 @@ export default function RoutinesScreen() {
           })()}
         </SafeAreaView>
       </Modal>
+
+      <PlateCalculator 
+        visible={calcOpen} 
+        onClose={() => setCalcOpen(false)} 
+        weight={addedW} 
+      />
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1e1e1e' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
-  newBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
+  newBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
   newBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 11, letterSpacing: 0.5 },
-  scroll: { padding: 14, paddingBottom: 50, gap: 12 },
-  pageTitle: { fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: -0.8, marginBottom: 2 },
-  pageSub: { fontSize: 13, color: C.muted, marginBottom: 8 },
+  scroll: { padding: 14, paddingBottom: 100, gap: 12 },
+  pageTitle: { fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 2 },
+  pageSub: { fontSize: 13, color: C.muted, marginBottom: 6 },
 
-  empty: { paddingTop: 60, alignItems: 'center', gap: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#444' },
-  emptySub: { fontSize: 13, color: '#333', textAlign: 'center', maxWidth: 260 },
+  empty: { paddingTop: 60, alignItems: 'center', gap: 10 },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: C.mutedLight },
+  emptySub: { fontSize: 13, color: C.muted, textAlign: 'center', maxWidth: 260 },
 
-  routineCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16, gap: 0 },
+  routineCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 18, padding: 14, gap: 0, elevation: 4, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   routineCardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  routineName: { fontSize: 20, fontWeight: '900', color: C.text, letterSpacing: -0.4 },
-  routineExCount: { fontSize: 12, color: C.muted, marginTop: 2 },
+  routineName: { fontSize: 20, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  routineExCount: { fontSize: 12, color: C.mutedLight, marginTop: 4, fontWeight: '600' },
   delBtn: { padding: 4 },
   exPreviewList: { gap: 6, marginBottom: 16 },
   exPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   exPreviewDot: { width: 6, height: 6, borderRadius: 3 },
-  exPreviewName: { fontSize: 13, color: C.textSub, fontWeight: '600', flex: 1 },
-  moreExTxt: { fontSize: 12, color: C.muted, paddingLeft: 16 },
-  startBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.primary, height: 50, borderRadius: 12, shadowColor: C.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.3, shadowRadius: 10 },
+  exPreviewName: { fontSize: 13, color: C.textSub, fontWeight: '700', flex: 1 },
+  moreExTxt: { fontSize: 12, color: C.muted, paddingLeft: 16, fontWeight: '600' },
+  startBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 12 },
   startBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 13, letterSpacing: 1.5, textTransform: 'uppercase' },
 
   // Modal/sheet shared
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#1a1a1a', maxHeight: '92%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderTopColor: C.border },
-  sheetHandle: { width: 40, height: 4, backgroundColor: '#444', borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 4 },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-  sheetTitle: { fontSize: 16, fontWeight: '900', color: C.text },
-  closeBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
-  sheetScroll: { padding: 16, paddingBottom: 40 },
-  fieldLabel: { fontSize: 10, color: C.muted, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 7 },
-  field: { backgroundColor: '#0a0a0a', color: C.text, paddingHorizontal: 14, height: 48, borderRadius: 12, fontSize: 15, fontWeight: '700', borderWidth: 1, borderColor: C.border },
+  sheet: { backgroundColor: C.surface, maxHeight: '92%', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderTopColor: C.border },
+  sheetHandle: { width: 40, height: 4, backgroundColor: C.border, borderRadius: 2, alignSelf: 'center', marginTop: 10, marginBottom: 6 },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  sheetTitle: { fontSize: 16, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  sheetScroll: { padding: 14, paddingBottom: 60 },
+  fieldLabel: { fontSize: 10, color: C.mutedLight, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 },
+  field: { backgroundColor: C.bg, color: C.text, paddingHorizontal: 14, height: 44, borderRadius: 12, fontSize: 14, fontWeight: '700', borderWidth: 1, borderColor: C.border },
   selectedExRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, gap: 10 },
-  selectedExNum: { fontSize: 12, color: C.muted, fontWeight: '700', width: 20 },
+  selectedExNum: { fontSize: 12, color: C.mutedLight, fontWeight: '800', width: 20 },
   selDot: { width: 8, height: 8, borderRadius: 4 },
-  selectedExName: { flex: 1, fontSize: 14, fontWeight: '700', color: C.text },
-  addExBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: C.border, borderStyle: 'dashed', borderRadius: 12, paddingVertical: 14, marginTop: 10 },
-  addExBtnTxt: { fontSize: 13, color: C.muted, fontWeight: '600' },
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: C.primary, height: 52, borderRadius: 14, marginTop: 20, shadowColor: C.primary, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.3, shadowRadius: 10 },
-  saveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 14, letterSpacing: 1.5, textTransform: 'uppercase' },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0a0a0a', margin: 14, paddingHorizontal: 14, height: 42, borderRadius: 12, borderWidth: 1, borderColor: C.border },
+  selectedExName: { flex: 1, fontSize: 14, fontWeight: '800', color: C.text },
+  addExBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: C.borderLight, borderStyle: 'dashed', borderRadius: 12, paddingVertical: 14, marginTop: 10, backgroundColor: C.surfaceHigh },
+  addExBtnTxt: { fontSize: 13, color: C.mutedLight, fontWeight: '700' },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 14, marginTop: 20 },
+  saveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 14, letterSpacing: 1, textTransform: 'uppercase' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, margin: 12, paddingHorizontal: 14, height: 40, borderRadius: 10, borderWidth: 1, borderColor: C.border },
   searchInput: { flex: 1, color: C.text, fontSize: 14 },
-  catChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.borderLight },
-  catChipActive: { backgroundColor: C.primary + '18', borderColor: C.primary },
-  catChipTxt: { color: C.muted, fontSize: 11, fontWeight: '700', textTransform: 'uppercase' },
-  pickerItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#111', borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 12 },
+  catChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border },
+  catChipActive: { backgroundColor: C.primaryDim, borderColor: C.primary },
+  catChipTxt: { color: C.textSub, fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  pickerItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
   pickerDot: { width: 8, height: 8, borderRadius: 4 },
   pickerName: { fontSize: 14, fontWeight: '800', color: C.text },
-  pickerSub: { fontSize: 10, color: C.muted, marginTop: 2 },
+  pickerSub: { fontSize: 10, color: C.muted, marginTop: 4 },
 
   // Session
   sessionContainer: { flex: 1, backgroundColor: C.bg },
-  sessHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  sessHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   sessEndBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  sessEndBtnTxt: { color: C.muted, fontSize: 12, fontWeight: '600' },
-  sessRoutineName: { fontSize: 13, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
-  sessTimer: { fontSize: 12, fontWeight: '700', color: C.muted, fontVariant: ['tabular-nums'] },
-  progressBarTrack: { height: 2, backgroundColor: C.border },
-  progressBarFill: { height: 2, backgroundColor: C.primary },
-  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 5, paddingBottom: 1 },
-  progressLabelLeft: { fontSize: 10, color: C.muted, fontWeight: '600' },
-  progressLabelRight: { fontSize: 10, color: C.muted, fontWeight: '600' },
-  sessScroll: { padding: 12, paddingBottom: 50, gap: 8 },
-  sessExCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden', minHeight: 52 },
-  sessExBar: { width: 3, alignSelf: 'stretch' },
-  sessExLabel: { fontSize: 8, color: C.muted, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 },
-  sessExName: { fontSize: 15, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
-  sessExCat: { fontSize: 10, fontWeight: '700', marginTop: 1 },
-  sessFormCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
-  formTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-  serieLabel: { fontSize: 10, fontWeight: '800', color: C.muted, letterSpacing: 2, textTransform: 'uppercase' },
-  rmRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  rmVal: { fontSize: 20, fontWeight: '900', color: C.text, letterSpacing: -0.8 },
-  rmSub: { fontSize: 10, color: C.muted, fontWeight: '600', marginTop: 2 },
-  sessSaveBtn: { backgroundColor: C.primary, height: 44, alignItems: 'center', justifyContent: 'center' },
-  sessSaveBtnTxt: { color: '#fff', fontWeight: '800', fontSize: 12, letterSpacing: 1.5 },
+  sessEndBtnTxt: { color: C.mutedLight, fontSize: 12, fontWeight: '700' },
+  sessRoutineName: { fontSize: 14, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  sessTimer: { fontSize: 13, fontWeight: '800', color: C.primary, fontVariant: ['tabular-nums'] },
+  progressBarTrack: { height: 3, backgroundColor: C.surfaceHigh },
+  progressBarFill: { height: 3, backgroundColor: C.primary },
+  progressLabels: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 14, paddingTop: 6, paddingBottom: 4 },
+  progressLabelLeft: { fontSize: 10, color: C.mutedLight, fontWeight: '700' },
+  progressLabelRight: { fontSize: 10, color: C.mutedLight, fontWeight: '700' },
+  sessScroll: { padding: 14, paddingBottom: 60, gap: 10 },
+  sessExCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden', minHeight: 60 },
+  sessExBar: { width: 4, alignSelf: 'stretch' },
+  sessExLabel: { fontSize: 8, color: C.muted, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 },
+  sessExName: { fontSize: 16, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  sessExCat: { fontSize: 10, fontWeight: '800', marginTop: 2 },
+  sessFormCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  formTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  serieLabel: { fontSize: 11, fontWeight: '900', color: C.textSub, letterSpacing: 2, textTransform: 'uppercase' },
+  rmRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rmVal: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  rmSub: { fontSize: 10, color: C.muted, fontWeight: '700', marginTop: 2 },
+  sessSaveBtn: { height: 42, alignItems: 'center', justifyContent: 'center' },
+  sessSaveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
   divider: { height: 1, backgroundColor: C.border },
   inputCols: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border },
   colSep: { width: 1, backgroundColor: C.border, alignSelf: 'stretch' },
-  setsCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden' },
-  setsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.border },
-  setsTitle: { fontSize: 9, fontWeight: '800', color: C.muted, letterSpacing: 1.5, textTransform: 'uppercase' },
-  setsCount: { fontSize: 11, color: C.primary, fontWeight: '700' },
-  setRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.border, gap: 8 },
-  setRowPR: { backgroundColor: C.primary + '08' },
-  setNum: { fontSize: 10, color: C.muted, fontWeight: '700', width: 20 },
-  setData: { fontSize: 13, fontWeight: '700', color: C.text },
-  set1rm: { fontSize: 10, color: C.muted },
-  prTag: { backgroundColor: C.primary, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
-  prTagTxt: { fontSize: 8, color: '#fff', fontWeight: '900', letterSpacing: 0.5 },
-  lastRef: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9 },
-  lastRefLabel: { fontSize: 11, color: C.muted, fontWeight: '500', flex: 1 },
-  navRow: { flexDirection: 'row', gap: 8, marginTop: 2 },
-  navBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.borderLight, borderRadius: 10, paddingVertical: 10 },
-  navBtnTxt: { color: C.text, fontWeight: '700', fontSize: 12 },
-  navBtnNext: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.primary, borderRadius: 10, paddingVertical: 10 },
-  navBtnNextTxt: { color: '#fff', fontWeight: '800', fontSize: 12, letterSpacing: 0.5 },
+  setsCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
+  setsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  setsTitle: { fontSize: 10, fontWeight: '800', color: C.textSub, letterSpacing: 1.5, textTransform: 'uppercase' },
+  setsCount: { fontSize: 11, color: C.primary, fontWeight: '800' },
+  setRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, gap: 10 },
+  setRowPR: { backgroundColor: C.primaryDim },
+  setNum: { fontSize: 10, color: C.mutedLight, fontWeight: '800', width: 22 },
+  setData: { fontSize: 14, fontWeight: '800', color: C.text },
+  set1rm: { fontSize: 10, color: C.muted, marginTop: 2 },
+  prTag: { backgroundColor: C.primary, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
+  prTagTxt: { fontSize: 9, color: '#fff', fontWeight: '900', letterSpacing: 0.5 },
+  copyRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 8, paddingVertical: 10, borderWidth: 1, borderColor: C.border, borderRadius: 10 },
+  copyTxt: { fontSize: 11, color: C.muted, fontWeight: '600' },
+  notesInput: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, color: C.text, fontSize: 12, paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 14, marginTop: 8, marginBottom: 12 },
+  restBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.surfaceHigh, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: C.border },
+  restTxt: { color: '#fff', fontSize: 11, fontWeight: '800', fontVariant: ['tabular-nums'] },
+  restTargetBtn: { backgroundColor: C.surfaceHigh, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: C.border },
+  restTargetTxt: { fontSize: 10, color: C.mutedLight, fontWeight: '800' },
+  navRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  navBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.borderLight, borderRadius: 12, paddingVertical: 12 },
+  navBtnTxt: { color: C.text, fontWeight: '800', fontSize: 13 },
+  navBtnNext: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.primary, borderRadius: 12, paddingVertical: 12 },
+  navBtnNextTxt: { color: '#fff', fontWeight: '900', fontSize: 13, letterSpacing: 0.5 },
 });

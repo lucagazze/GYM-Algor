@@ -151,6 +151,21 @@ export default function ProgressScreen() {
               </View>
             </View>
 
+            {/* 1RM Percentages */}
+            {selected.tracking_type === 'weight' && best1rm > 0 && (
+              <View style={s.pctCard}>
+                <Text style={s.pctTitle}>TABLA DE PORCENTAJES (1RM: {RM.format(best1rm)} kg)</Text>
+                <View style={s.pctGrid}>
+                  {[95, 90, 85, 80, 75, 70, 65, 60].map(pct => (
+                    <View key={pct} style={s.pctCell}>
+                      <Text style={s.pctLabel}>{pct}%</Text>
+                      <Text style={[s.pctVal, { color: catColor }]}>{RM.format(best1rm * (pct / 100))} kg</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* Year Goal */}
             {goalPct !== null && yearGoal && (
               <View style={s.goalCard}>
@@ -317,63 +332,64 @@ export default function ProgressScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1e1e1e' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
   headerSub: { fontSize: 12, color: C.muted, fontWeight: '600' },
-  scroll: { padding: 14, paddingBottom: 50, gap: 10 },
-  pageTitle: { fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: -0.8, marginBottom: 6 },
-
-  exCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderLeftWidth: 4, borderRadius: 12, padding: 14, flexDirection: 'row', alignItems: 'center' },
-  exLabel: { fontSize: 9, color: C.muted, fontWeight: '800', letterSpacing: 1 },
-  exName: { fontSize: 17, fontWeight: '900', color: C.text, marginTop: 2 },
-
-  statsRow: { flexDirection: 'row', gap: 8 },
-  statCard: { flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 10, alignItems: 'center' },
-  statLabel: { fontSize: 9, color: C.muted, fontWeight: '800', letterSpacing: 0.8, textAlign: 'center' },
-  statVal: { fontSize: 22, fontWeight: '900', color: C.text, marginTop: 3 },
-  statUnit: { fontSize: 9, color: C.muted, fontWeight: '600' },
-  statDate: { fontSize: 9, color: C.muted, marginTop: 2 },
-
-  goalCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 14 },
-  goalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  goalLabel: { fontSize: 10, color: C.muted, fontWeight: '800', letterSpacing: 0.8 },
-  goalTarget: { fontSize: 12, color: C.textSub, fontWeight: '700' },
-  goalBarBg: { height: 5, backgroundColor: C.border, borderRadius: 3, overflow: 'hidden' },
-  goalBarFill: { height: 5, borderRadius: 3 },
-  goalFooterRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  goalCurrent: { fontSize: 11, color: C.muted, fontWeight: '700' },
+  scroll: { padding: 14, paddingBottom: 100, gap: 14 },
+  pageTitle: { fontSize: 24, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 2 },
+  exCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, borderLeftWidth: 4 },
+  exLabel: { fontSize: 9, color: C.muted, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 3 },
+  exName: { fontSize: 15, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
+  statsRow: { flexDirection: 'row', gap: 10 },
+  statCard: { flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14, alignItems: 'center' },
+  statLabel: { fontSize: 9, fontWeight: '800', color: C.muted, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
+  statVal: { fontSize: 22, fontWeight: '900', color: C.text, letterSpacing: -0.8 },
+  goalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  goalLabel: { fontSize: 10, fontWeight: '800', color: C.muted, letterSpacing: 1.5, textTransform: 'uppercase' },
+  goalTarget: { fontSize: 14, fontWeight: '900', color: C.text },
+  goalBarBg: { height: 6, backgroundColor: C.surfaceHigh, borderRadius: 3, marginBottom: 8, overflow: 'hidden' },
+  goalBarFill: { height: 6, borderRadius: 3 },
+  goalFooterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  goalCurrent: { fontSize: 11, color: C.muted, fontWeight: '600' },
   goalPct: { fontSize: 13, fontWeight: '900' },
+  chartToggleRow: { flexDirection: 'row', gap: 6, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 4 },
+  chartToggleBtn: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 9 },
+  chartToggleTxt: { fontSize: 10, fontWeight: '800', color: C.muted, letterSpacing: 1 },
+  chartCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14 },
+  chartTitle: { fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 4 },
+  noData: { paddingVertical: 40, alignItems: 'center', gap: 10 },
+  noDataTxt: { fontSize: 12, color: C.muted, textAlign: 'center' },
+  sheetItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
 
-  chartToggleRow: { flexDirection: 'row', gap: 6, backgroundColor: C.surface, borderRadius: 10, padding: 3, borderWidth: 1, borderColor: C.border },
-  chartToggleBtn: { flex: 1, paddingVertical: 7, borderRadius: 8, alignItems: 'center' },
-  chartToggleTxt: { fontSize: 11, fontWeight: '800', color: C.muted, letterSpacing: 0.5 },
+  tableCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16, elevation: 2, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  tableTitle: { fontSize: 11, fontWeight: '900', color: C.mutedLight, letterSpacing: 1, marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
+  tableMonth: { width: 44, fontSize: 13, color: C.textSub, fontWeight: '800' },
+  tableVal: { flex: 1, fontSize: 16, fontWeight: '900', color: C.text, textAlign: 'right' },
+  tableUnit: { fontSize: 12, color: C.muted },
 
-  chartCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14, alignItems: 'center' },
-  chartTitle: { fontSize: 11, fontWeight: '900', color: C.muted, letterSpacing: 0.5, alignSelf: 'flex-start' },
-  noData: { paddingVertical: 30, alignItems: 'center', gap: 10 },
-  noDataTxt: { color: '#333', fontSize: 12, fontWeight: '600' },
-
-  tableCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14 },
-  tableTitle: { fontSize: 10, fontWeight: '900', color: C.muted, letterSpacing: 1, marginBottom: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: C.border },
-  tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: C.border },
-  tableMonth: { width: 40, fontSize: 12, color: C.textSub, fontWeight: '700' },
-  tableVal: { flex: 1, fontSize: 14, fontWeight: '900', color: C.text, textAlign: 'right' },
-  tableUnit: { fontSize: 11, color: C.muted },
-
-  prRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
-  prRank: { width: 30, height: 30, borderRadius: 15, backgroundColor: C.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
-  prRankGold: { backgroundColor: '#F59E0B20' },
-  prRankTxt: { fontSize: 11, fontWeight: '900', color: C.muted },
-  prMain: { fontSize: 13, fontWeight: '800', color: C.text },
-  pr1rm: { fontSize: 10, color: C.primary, fontWeight: '700', marginTop: 2 },
-  prDate: { fontSize: 10, color: C.muted, fontWeight: '700' },
+  prRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  prRank: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  prRankGold: { backgroundColor: '#F59E0B25' },
+  prRankTxt: { fontSize: 12, fontWeight: '900', color: C.muted },
+  prMain: { fontSize: 15, fontWeight: '800', color: C.text },
+  pr1rm: { fontSize: 12, color: C.primary, fontWeight: '800', marginTop: 4 },
+  prDate: { fontSize: 11, color: C.muted, fontWeight: '700' },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: C.surface, height: '80%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderTopColor: C.border },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
-  sheetTitle: { fontSize: 14, fontWeight: '900', color: C.text, letterSpacing: 1 },
-  sheetItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 10, gap: 10 },
-  sheetDot: { width: 3, height: 26, borderRadius: 2 },
-  sheetItemName: { fontSize: 13, fontWeight: '800', color: C.textSub },
-  sheetItemSub: { fontSize: 10, color: C.muted, marginTop: 2 },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  sheetTitle: { fontSize: 16, fontWeight: '900', color: C.text, letterSpacing: 1 },
+  statUnit: { fontSize: 10, color: C.muted, fontWeight: '600' },
+  statDate: { fontSize: 9, color: C.mutedLight, marginTop: 4 },
+  pctCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14, marginBottom: 16 },
+  pctTitle: { fontSize: 11, fontWeight: '800', color: C.textSub, marginBottom: 10, letterSpacing: 0.5 },
+  pctGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
+  pctCell: { width: '22%', backgroundColor: C.surfaceHigh, borderRadius: 8, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  pctLabel: { fontSize: 12, fontWeight: '800', color: C.muted, marginBottom: 2 },
+  pctVal: { fontSize: 12, fontWeight: '800' },
+  goalCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 16, marginBottom: 16 },
+  sheetDot: { width: 4, height: 28, borderRadius: 2 },
+  sheetItemName: { fontSize: 15, fontWeight: '800', color: C.textSub },
+  sheetItemSub: { fontSize: 11, color: C.muted, marginTop: 4 },
 });

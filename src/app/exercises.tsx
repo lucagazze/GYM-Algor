@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { workoutService, Exercise } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
@@ -325,13 +326,19 @@ export default function ExercisesScreen() {
               />
 
               <TouchableOpacity
-                style={[s.saveBtn, saving && { opacity: 0.6 }]}
                 onPress={handleSave}
                 disabled={saving}
+                activeOpacity={0.8}
               >
-                {saving
-                  ? <ActivityIndicator color="#fff" />
-                  : <Text style={s.saveBtnTxt}>{editTarget ? 'GUARDAR CAMBIOS' : 'CREAR EJERCICIO'}</Text>}
+                <LinearGradient
+                  colors={[C.primary, '#D91646']}
+                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                  style={[s.saveBtn, saving && { opacity: 0.6 }]}
+                >
+                  {saving
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={s.saveBtnTxt}>{editTarget ? 'GUARDAR CAMBIOS' : 'CREAR EJERCICIO'}</Text>}
+                </LinearGradient>
               </TouchableOpacity>
 
               {editTarget?.is_custom && (
@@ -353,60 +360,62 @@ export default function ExercisesScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1e1e1e' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primary, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 7 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
   addBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 11, letterSpacing: 0.5 },
 
-  catRow: { paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: C.border, maxHeight: 48, flexGrow: 0 },
-  catChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
-  catChipTxt: { color: C.muted, fontSize: 11, fontWeight: '700' },
+  catRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, maxHeight: 50, flexGrow: 0 },
+  catChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  catChipTxt: { color: C.mutedLight, fontSize: 11, fontWeight: '800' },
 
-  scroll: { padding: 14, paddingBottom: 50, gap: 14 },
-  pageTitle: { fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: -0.8, marginBottom: 2 },
+  scroll: { padding: 12, paddingBottom: 100, gap: 14 },
+  pageTitle: { fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 2 },
 
-  catSection: { gap: 7 },
-  catSectionHeader: { flexDirection: 'row', alignItems: 'center', borderLeftWidth: 3, paddingLeft: 10, gap: 7 },
+  catSection: { gap: 8 },
+  catSectionHeader: { flexDirection: 'row', alignItems: 'center', borderLeftWidth: 4, paddingLeft: 10, gap: 6 },
   catSectionIcon: { fontSize: 14 },
-  catSectionLabel: { fontSize: 12, fontWeight: '900', letterSpacing: 0.8, flex: 1 },
+  catSectionLabel: { fontSize: 13, fontWeight: '900', letterSpacing: 1, flex: 1 },
   catSectionCount: { fontSize: 11, color: C.muted, fontWeight: '700' },
 
-  exCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden' },
-  exBar: { width: 3, alignSelf: 'stretch' },
-  exTopRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 3 },
-  exName: { fontSize: 14, fontWeight: '800', color: C.text, flex: 1 },
-  customBadge: { backgroundColor: C.surfaceHigh, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2 },
-  customBadgeTxt: { fontSize: 9, color: C.muted, fontWeight: '900', letterSpacing: 0.5 },
-  exMeta: { fontSize: 10, color: C.muted, fontWeight: '600' },
-  exNotes: { fontSize: 10, color: '#444', fontStyle: 'italic', marginTop: 3 },
+  exCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  exBar: { width: 4, alignSelf: 'stretch' },
+  exTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
+  exName: { fontSize: 15, fontWeight: '900', color: C.text, flex: 1 },
+  customBadge: { backgroundColor: C.surfaceHigh, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
+  customBadgeTxt: { fontSize: 8, color: C.mutedLight, fontWeight: '900', letterSpacing: 0.5 },
+  exMeta: { fontSize: 11, color: C.muted, fontWeight: '700' },
+  exNotes: { fontSize: 10, color: C.mutedLight, fontStyle: 'italic', marginTop: 4 },
   exActions: { flexDirection: 'column', alignItems: 'center', paddingRight: 10, gap: 10 },
   actionBtn: { padding: 6 },
 
-  empty: { paddingTop: 60, alignItems: 'center', gap: 12 },
-  emptyTxt: { color: '#333', fontSize: 14, fontWeight: '700' },
+  empty: { paddingTop: 60, alignItems: 'center', gap: 10 },
+  emptyTxt: { color: C.mutedLight, fontSize: 15, fontWeight: '700' },
 
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: C.surface, maxHeight: '95%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderTopColor: C.border },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
-  sheetTitle: { fontSize: 14, fontWeight: '900', color: C.text, letterSpacing: 1 },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: C.surface, maxHeight: '92%', borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderTopColor: C.border },
+  sheetHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  sheetTitle: { fontSize: 16, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  sheetScroll: { padding: 16, paddingBottom: 60, gap: 14 },
+  formScroll: { padding: 16, paddingBottom: 60, gap: 14 },
+  fieldLabel: { fontSize: 10, color: C.mutedLight, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 },
+  field: { backgroundColor: C.bg, color: C.text, paddingHorizontal: 14, height: 44, borderRadius: 12, fontSize: 14, fontWeight: '700', borderWidth: 1, borderColor: C.border },
 
-  formScroll: { padding: 16, gap: 0, paddingBottom: 36 },
-  fieldLabel: { fontSize: 9, color: C.muted, fontWeight: '800', letterSpacing: 1, marginBottom: 7, marginTop: 16 },
-  field: { backgroundColor: C.bg, paddingHorizontal: 14, height: 46, borderRadius: 10, fontSize: 15, fontWeight: '700', borderWidth: 1, borderColor: C.border },
+  optRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  optBtn: { flex: 1, minWidth: '45%', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12 },
+  optEmoji: { fontSize: 18, marginBottom: 4 },
+  optLabel: { fontSize: 10, color: C.mutedLight, fontWeight: '800', letterSpacing: 0.5 },
 
-  optRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  optBtn: { flex: 1, minWidth: '45%', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 10 },
-  optEmoji: { fontSize: 16, marginBottom: 3 },
-  optLabel: { fontSize: 10, color: C.muted, fontWeight: '800', letterSpacing: 0.5 },
+  trackingOpt: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12, marginBottom: 8 },
+  trackingOptActive: { borderColor: C.primary, backgroundColor: C.primaryDim },
+  trackingLabel: { fontSize: 13, fontWeight: '800', color: C.text },
+  trackingDesc: { fontSize: 11, color: C.muted, marginTop: 4 },
 
-  trackingOpt: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 10, padding: 12, marginBottom: 6 },
-  trackingOptActive: { borderColor: C.primary, backgroundColor: C.primary + '12' },
-  trackingLabel: { fontSize: 13, fontWeight: '800', color: C.textSub },
-  trackingDesc: { fontSize: 10, color: C.muted, marginTop: 2 },
-
-  saveBtn: { backgroundColor: C.primary, height: 50, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 20 },
+  saveBtn: { height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 24 },
   saveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 15, letterSpacing: 1 },
 
-  deleteModalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, padding: 12 },
-  deleteModalBtnTxt: { color: C.error, fontWeight: '800', fontSize: 13 },
+  deleteModalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 16, padding: 14 },
+  deleteModalBtnTxt: { color: C.error, fontWeight: '800', fontSize: 14 },
 });
