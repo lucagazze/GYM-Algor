@@ -216,6 +216,20 @@ export const workoutService = {
     } catch { return []; }
   },
 
+  async getPRLog(exerciseId: number): Promise<WorkoutLog | null> {
+    try {
+      const { data, error } = await supabase
+        .from('workout_logs')
+        .select('*')
+        .eq('exercise_id', exerciseId)
+        .eq('is_pr', true)
+        .order('estimated_1rm', { ascending: false })
+        .limit(1)
+        .single();
+      return !error && data ? data : null;
+    } catch { return null; }
+  },
+
   async getLastLog(exerciseId: number): Promise<WorkoutLog | null> {
     try {
       const { data, error } = await supabase

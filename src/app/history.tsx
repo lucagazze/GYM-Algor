@@ -1,280 +1,214 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
-  StyleSheet, Text, View, SectionList, TouchableOpacity,
-  ActivityIndicator, Modal, FlatList, Alert, Platform,
+  StyleSheet, Text, View, ScrollView, TouchableOpacity,
+  TextInput, ActivityIndicator, Alert, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import { workoutService, Exercise, WorkoutLog } from '../utils/workoutService';
+import { workoutService, WorkoutLog, Exercise } from '../utils/workoutService';
+import { C, CAT_COLOR } from '../constants/theme';
 
-const CAT_COLOR: Record<string, string> = {
-  EMPUJE: '#E63946', TRACCION: '#3B82F6', PIERNA: '#10B981', SKILL: '#F59E0B',
-};
+const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-interface Section {
-  title: string;
-  data: WorkoutLog[];
+function fmtFullDate(d: string) {
+  const p = d.split('-');
+  if (p.length !== 3) return d;
+  const today = new Date().toISOString().split('T')[0];
+  const yest = new Date(); yest.setDate(yest.getDate()-1);
+  if (d === today) return 'Hoy';
+  if (d === yest.toISOString().split('T')[0]) return 'Ayer';
+  return `${parseInt(p[2])} ${MONTHS[parseInt(p[1])-1]} ${p[0]}`;
 }
-
-function fmtFullDate(d: string): string {
-  const months = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const parts = d.split('-');
-  if (parts.length !== 3) return d;
-  const month = months[parseInt(parts[1]) - 1] ?? '';
-  return `${parts[2]} ${month} ${parts[0]}`;
-}
-
-type SortMode = 'recientes' | 'mejores';
 
 export default function HistoryScreen() {
-  const [allLogs, setAllLogs] = useState<WorkoutLog[]>([]);
-  const [sections, setSections] = useState<Section[]>([]);
+  const [logs, setLogs] = useState<WorkoutLog[]>([]);
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [filterEx, setFilterEx] = useState<number | null>(null);
-  const [sortMode, setSortMode] = useState<SortMode>('recientes');
   const [loading, setLoading] = useState(true);
-  const [filterOpen, setFilterOpen] = useState(false);
+  const [searchQ, setSearchQ] = useState('');
 
-  useFocusEffect(
-    useCallback(() => { loadAll(); }, [])
-  );
+  useFocusEffect(useCallback(() => { load(); }, []));
 
-  useEffect(() => {
-    workoutService.getExercises().then(setExercises);
-  }, []);
-
-  const loadAll = async () => {
+  const load = async () => {
     setLoading(true);
-    const logs = await workoutService.getAllRecentLogs(200);
-    setAllLogs(logs);
-    buildSections(logs, filterEx, sortMode);
+    const [allLogs, exList] = await Promise.all([
+      workoutService.getAllRecentLogs(200),
+      workoutService.getExercises(),
+    ]);
+    setLogs(allLogs);
+    setExercises(exList);
     setLoading(false);
   };
 
-  const buildSections = (logs: WorkoutLog[], exFilter: number | null, sort: SortMode) => {
-    const filtered = exFilter ? logs.filter(l => l.exercise_id === exFilter) : logs;
+  const getEx = (id: number) => exercises.find(e => e.id === id);
 
-    if (sort === 'mejores') {
-      const sorted = [...filtered].sort((a, b) => {
-        const va = Number(a.estimated_1rm) || Number(a.duration_sec) || Number(a.reps) || 0;
-        const vb = Number(b.estimated_1rm) || Number(b.duration_sec) || Number(b.reps) || 0;
-        return vb - va;
-      });
-      setSections(sorted.length > 0 ? [{ title: 'MEJORES LEVANTAMIENTOS', data: sorted }] : []);
-      return;
-    }
-
-    const byDate: Record<string, WorkoutLog[]> = {};
-    for (const log of filtered) {
-      if (!byDate[log.date]) byDate[log.date] = [];
-      byDate[log.date].push(log);
-    }
-    const secs: Section[] = Object.entries(byDate)
-      .sort(([a], [b]) => b.localeCompare(a))
-      .map(([date, data]) => ({ title: date, data }));
-    setSections(secs);
-  };
-
-  useEffect(() => {
-    buildSections(allLogs, filterEx, sortMode);
-  }, [filterEx, allLogs, sortMode]);
-
-  const handleDelete = (log: WorkoutLog) => {
+  const deleteLog = (id: string) => {
     const doDelete = async () => {
-      if (!log.id) return;
-      await workoutService.deleteLog(log.id);
-      await loadAll();
+      await workoutService.deleteLog(id);
+      setLogs(prev => prev.filter(l => l.id !== id));
     };
-
     if (Platform.OS === 'web') {
-      if (window.confirm('¿Seguro que querés borrar esta serie?')) {
-        doDelete();
-      }
+      if (window.confirm('¿Borrar este registro?')) doDelete();
       return;
     }
-
-    Alert.alert('Borrar registro', '¿Seguro que querés borrar esta serie?', [
+    Alert.alert('Borrar', '¿Borrar este registro?', [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar', style: 'destructive',
-        onPress: doDelete,
-      },
+      { text: 'Borrar', style: 'destructive', onPress: doDelete },
     ]);
   };
 
-  const filterExName = filterEx ? exercises.find(e => e.id === filterEx)?.name ?? 'Filtrado' : null;
+  const filtered = searchQ
+    ? logs.filter(l => {
+        const ex = l.exercise ?? getEx(l.exercise_id);
+        return ex?.name.toLowerCase().includes(searchQ.toLowerCase());
+      })
+    : logs;
 
-  const renderItem = ({ item }: { item: WorkoutLog }) => {
-    const ex = item.exercise as Exercise | undefined;
-    const catColor = CAT_COLOR[ex?.category ?? ''] ?? '#555';
-    return (
-      <View style={s.logRow}>
-        <View style={[s.logDot, { backgroundColor: catColor }]} />
-        <View style={{ flex: 1 }}>
-          <Text style={[s.logExName, { color: catColor }]}>{ex?.name ?? `#${item.exercise_id}`}</Text>
-          {ex?.tracking_type === 'weight' ? (
-            <Text style={s.logData}>
-              <Text style={s.logDataBold}>+{item.added_weight} kg  ×  {item.reps} reps</Text>
-              <Text style={s.logData1rm}>   {Number(item.estimated_1rm).toFixed(1)} kg 1RM</Text>
-            </Text>
-          ) : ex?.tracking_type === 'time' ? (
-            <Text style={s.logData}><Text style={s.logDataBold}>{item.duration_sec}s hold</Text></Text>
-          ) : (
-            <Text style={s.logData}><Text style={s.logDataBold}>{item.reps} reps</Text></Text>
-          )}
-          {item.notes ? <Text style={s.logNotes}>{item.notes}</Text> : null}
-        </View>
-        <View style={s.logRight}>
-          {item.is_pr && <Text style={s.prBadge}>PR</Text>}
-          <TouchableOpacity onPress={() => handleDelete(item)} style={s.delBtn}>
-            <Ionicons name="trash-outline" size={16} color="#444" />
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
-
-  const renderSectionHeader = ({ section }: { section: Section }) => {
-    const isDateTitle = /^\d{4}-\d{2}-\d{2}$/.test(section.title);
-    return (
-      <View style={s.sectionHeader}>
-        <Text style={s.sectionDate}>{isDateTitle ? fmtFullDate(section.title) : section.title}</Text>
-        <Text style={s.sectionCount}>{section.data.length} series</Text>
-      </View>
-    );
-  };
+  const byDate: Record<string, WorkoutLog[]> = {};
+  for (const l of filtered) {
+    if (!byDate[l.date]) byDate[l.date] = [];
+    byDate[l.date].push(l);
+  }
+  const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
   return (
-    <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
-      {/* Header */}
+    <SafeAreaView style={s.container} edges={['top','left','right']}>
       <View style={s.header}>
-        <Text style={s.headerTitle}>HISTORIAL</Text>
-        <TouchableOpacity style={[s.filterBtn, filterEx ? s.filterBtnActive : undefined]} onPress={() => setFilterOpen(true)}>
-          <Ionicons name="filter" size={14} color={filterEx ? '#E63946' : '#555'} />
-          <Text style={[s.filterTxt, filterEx ? { color: '#E63946' } : undefined]}>
-            {filterEx ? filterExName : 'EJERCICIO'}
-          </Text>
-          {filterEx && (
-            <TouchableOpacity onPress={() => setFilterEx(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Ionicons name="close-circle" size={14} color="#E63946" />
-            </TouchableOpacity>
-          )}
-        </TouchableOpacity>
+        <Text style={s.logo}>ALGO<Text style={{ color: C.primary }}>R</Text>LIFT</Text>
+        <Text style={s.headerSub}>{logs.length} registros</Text>
       </View>
 
-      {/* Sort toggle */}
-      <View style={s.sortRow}>
-        {(['recientes', 'mejores'] as SortMode[]).map(mode => (
-          <TouchableOpacity
-            key={mode}
-            style={[s.sortBtn, sortMode === mode && s.sortBtnActive]}
-            onPress={() => setSortMode(mode)}
-          >
-            <Text style={[s.sortBtnTxt, sortMode === mode && s.sortBtnTxtActive]}>
-              {mode === 'recientes' ? 'RECIENTES' : 'MEJORES'}
-            </Text>
+      <View style={s.searchWrap}>
+        <Ionicons name="search" size={16} color={C.muted} style={{ marginRight: 8 }} />
+        <TextInput
+          style={s.searchInput}
+          placeholder="Buscar ejercicio..."
+          placeholderTextColor={C.muted}
+          value={searchQ}
+          onChangeText={setSearchQ}
+        />
+        {searchQ.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQ('')}>
+            <Ionicons name="close-circle" size={16} color={C.muted} />
           </TouchableOpacity>
-        ))}
+        )}
       </View>
 
       {loading ? (
-        <ActivityIndicator color="#E63946" size="large" style={{ marginTop: 60 }} />
-      ) : sections.length === 0 ? (
-        <View style={s.empty}>
-          <Ionicons name="calendar-outline" size={56} color="#222" />
-          <Text style={s.emptyTxt}>No hay registros{filterEx ? ' para este ejercicio' : ''}</Text>
-        </View>
+        <ActivityIndicator color={C.primary} size="large" style={{ marginTop: 60 }} />
       ) : (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item, i) => item.id ?? String(i)}
-          renderItem={renderItem}
-          renderSectionHeader={renderSectionHeader}
-          contentContainerStyle={s.list}
-          stickySectionHeadersEnabled
-          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: '#111', marginLeft: 36 }} />}
-        />
-      )}
+        <ScrollView contentContainerStyle={s.scroll}>
+          <Text style={s.pageTitle}>Historial</Text>
 
-      {/* ── Filter Modal ─────────────────────────────── */}
-      <Modal visible={filterOpen} animationType="slide" transparent>
-        <View style={s.overlay}>
-          <SafeAreaView style={s.sheet}>
-            <View style={s.sheetHeader}>
-              <Text style={s.sheetTitle}>FILTRAR POR EJERCICIO</Text>
-              <TouchableOpacity onPress={() => setFilterOpen(false)}>
-                <Ionicons name="close" size={26} color="#FFF" />
-              </TouchableOpacity>
+          {dates.length === 0 ? (
+            <View style={s.empty}>
+              <Ionicons name="calendar-outline" size={52} color="#222" />
+              <Text style={s.emptyTxt}>Sin registros todavía</Text>
             </View>
-            <FlatList
-              data={[null, ...exercises]}
-              keyExtractor={item => String(item?.id ?? 'all')}
-              contentContainerStyle={{ padding: 16, gap: 8 }}
-              renderItem={({ item }) => {
-                const col = item ? (CAT_COLOR[item.category] ?? '#888') : '#888';
-                const isSel = item ? filterEx === item.id : filterEx === null;
-                return (
-                  <TouchableOpacity
-                    style={[s.filterItem, isSel && { borderColor: col, backgroundColor: col + '15' }]}
-                    onPress={() => { setFilterEx(item?.id ?? null); setFilterOpen(false); }}
-                  >
-                    {item && <View style={[s.filterDot, { backgroundColor: col }]} />}
-                    <Text style={[s.filterItemTxt, isSel && { color: col }]}>
-                      {item ? item.name : 'Todos los ejercicios'}
-                    </Text>
-                    {isSel && <Ionicons name="checkmark-circle" size={20} color={col} />}
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </SafeAreaView>
-        </View>
-      </Modal>
+          ) : (
+            dates.map(date => {
+              const dayLogs = byDate[date];
+              const byEx: Record<number, WorkoutLog[]> = {};
+              for (const l of dayLogs) {
+                if (!byEx[l.exercise_id]) byEx[l.exercise_id] = [];
+                byEx[l.exercise_id].push(l);
+              }
+              const hasPR = dayLogs.some(l => l.is_pr);
+
+              return (
+                <View key={date} style={s.dayCard}>
+                  <View style={s.dayHeader}>
+                    <Text style={s.dayTitle}>{fmtFullDate(date)}</Text>
+                    <View style={s.dayMeta}>
+                      {hasPR && <View style={s.prDot}><Text style={s.prDotTxt}>PR</Text></View>}
+                      <Text style={s.daySetCount}>{dayLogs.length} serie{dayLogs.length !== 1 ? 's' : ''}</Text>
+                    </View>
+                  </View>
+
+                  {Object.entries(byEx).map(([exIdStr, exLogs]) => {
+                    const exId = parseInt(exIdStr);
+                    const ex = exLogs[0]?.exercise ?? getEx(exId);
+                    const cc = CAT_COLOR[ex?.category ?? ''] ?? C.muted;
+                    const best1rm = exLogs.reduce((b, l) => (l.estimated_1rm||0) > b ? (l.estimated_1rm||0) : b, 0);
+                    const bestDur = exLogs.reduce((b, l) => (l.duration_sec||0) > b ? (l.duration_sec||0) : b, 0);
+                    const bestReps = exLogs.reduce((b, l) => (l.reps||0) > b ? (l.reps||0) : b, 0);
+                    let metaStr = '';
+                    if (ex?.tracking_type === 'weight' && best1rm > 0)
+                      metaStr = `${exLogs.length} series · Best 1RM: ${best1rm.toFixed(1)} kg`;
+                    else if (ex?.tracking_type === 'time')
+                      metaStr = `${exLogs.length} series · Max: ${bestDur}s`;
+                    else
+                      metaStr = `${exLogs.length} series · Max: ${bestReps} reps`;
+
+                    return (
+                      <View key={exId} style={s.exGroupRow}>
+                        <View style={[s.exGroupBar, { backgroundColor: cc }]} />
+                        <View style={{ flex: 1, paddingLeft: 12 }}>
+                          <Text style={s.exGroupName}>{ex?.name ?? `Ejercicio ${exId}`}</Text>
+                          <Text style={s.exGroupMeta}>{metaStr}</Text>
+                          <View style={s.setsList}>
+                            {exLogs.map((l, i) => {
+                              let valStr = ex?.tracking_type === 'weight'
+                                ? `+${l.added_weight}kg × ${l.reps}r`
+                                : ex?.tracking_type === 'time' ? `${l.duration_sec}s`
+                                : `${l.reps}r`;
+                              return (
+                                <View key={l.id ?? i} style={s.miniSetRow}>
+                                  <Text style={s.miniSetNum}>S{i+1}</Text>
+                                  <Text style={s.miniSetVal}>{valStr}</Text>
+                                  {l.estimated_1rm > 0 && (
+                                    <Text style={s.miniSet1rm}>{Number(l.estimated_1rm).toFixed(1)}kg 1RM</Text>
+                                  )}
+                                  {l.is_pr && <View style={s.prTag}><Text style={s.prTagTxt}>PR</Text></View>}
+                                  <TouchableOpacity onPress={() => l.id && deleteLog(l.id)} style={s.delBtn}>
+                                    <Ionicons name="trash-outline" size={14} color="#2a2a2a" />
+                                  </TouchableOpacity>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A0A' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#161616' },
-  headerTitle: { fontSize: 17, fontWeight: '900', color: '#FFF', letterSpacing: 1 },
-  filterBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#141414', borderWidth: 1, borderColor: '#222', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7 },
-  filterBtnActive: { borderColor: '#E63946', backgroundColor: '#1E0810' },
-  filterTxt: { color: '#666', fontSize: 10, fontWeight: '800', letterSpacing: 0.5, maxWidth: 100 },
-
-  list: { paddingBottom: 50 },
-
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0D0D0D', paddingHorizontal: 16, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#161616' },
-  sectionDate: { fontSize: 12, fontWeight: '900', color: '#888', letterSpacing: 0.3 },
-  sectionCount: { fontSize: 10, color: '#444', fontWeight: '700' },
-
-  sortRow: { flexDirection: 'row', backgroundColor: '#0D0D0D', borderBottomWidth: 1, borderBottomColor: '#141414' },
-  sortBtn: { flex: 1, paddingVertical: 9, alignItems: 'center' },
-  sortBtnActive: { borderBottomWidth: 2, borderBottomColor: '#E63946' },
-  sortBtnTxt: { fontSize: 10, fontWeight: '700', color: '#3A3A3A', letterSpacing: 1 },
-  sortBtnTxtActive: { color: '#E63946' },
-
-  logRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#0A0A0A' },
-  logDot: { width: 3, height: 34, borderRadius: 2, marginRight: 12 },
-  logExName: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5, marginBottom: 3 },
-  logData: { fontSize: 14, color: '#888', fontWeight: '600' },
-  logDataBold: { fontSize: 14, color: '#DDD', fontWeight: '800' },
-  logData1rm: { fontSize: 11, color: '#444', fontWeight: '600' },
-  logRir: { fontSize: 10, color: '#444', fontWeight: '600', marginTop: 2 },
-  logNotes: { fontSize: 10, color: '#555', fontStyle: 'italic', marginTop: 2 },
-  logRight: { alignItems: 'flex-end', gap: 6 },
-  prBadge: { fontSize: 9, color: '#22C55E', fontWeight: '800', letterSpacing: 0.5 },
-  delBtn: { padding: 5 },
-
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  emptyTxt: { color: '#333', fontSize: 14, fontWeight: '700' },
-
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#111', maxHeight: '80%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderTopColor: '#222' },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#1E1E1E' },
-  sheetTitle: { fontSize: 15, fontWeight: '900', color: '#FFF', letterSpacing: 1 },
-  filterItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0A0A0A', borderWidth: 1, borderColor: '#1E1E1E', borderRadius: 10, padding: 10, gap: 10 },
-  filterDot: { width: 3, height: 24, borderRadius: 2 },
-  filterItemTxt: { flex: 1, fontSize: 13, fontWeight: '700', color: '#CCC' },
+  container: { flex: 1, backgroundColor: C.bg },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#1e1e1e' },
+  logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  headerSub: { fontSize: 12, color: C.muted, fontWeight: '600' },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0a0a0a', margin: 14, paddingHorizontal: 14, height: 42, borderRadius: 12, borderWidth: 1, borderColor: C.border },
+  searchInput: { flex: 1, color: C.text, fontSize: 14 },
+  scroll: { padding: 14, paddingBottom: 50, gap: 10 },
+  pageTitle: { fontSize: 28, fontWeight: '900', color: C.text, letterSpacing: -0.8, marginBottom: 6 },
+  empty: { paddingTop: 60, alignItems: 'center', gap: 12 },
+  emptyTxt: { fontSize: 16, color: '#333', fontWeight: '700' },
+  dayCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
+  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  dayTitle: { fontSize: 13, fontWeight: '800', color: C.text },
+  dayMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  prDot: { backgroundColor: C.primary + '18', borderRadius: 5, paddingHorizontal: 7, paddingVertical: 2 },
+  prDotTxt: { fontSize: 9, color: C.primary, fontWeight: '800' },
+  daySetCount: { fontSize: 12, color: C.muted, fontWeight: '600' },
+  exGroupRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
+  exGroupBar: { width: 3, borderRadius: 2, alignSelf: 'stretch' },
+  exGroupName: { fontSize: 14, fontWeight: '800', color: C.text, marginBottom: 2 },
+  exGroupMeta: { fontSize: 11, color: C.muted, fontWeight: '600', marginBottom: 8 },
+  setsList: { gap: 5 },
+  miniSetRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  miniSetNum: { fontSize: 10, color: C.muted, fontWeight: '700', width: 20 },
+  miniSetVal: { fontSize: 13, fontWeight: '700', color: C.textSub },
+  miniSet1rm: { fontSize: 11, color: C.muted, flex: 1 },
+  prTag: { backgroundColor: C.primary + '18', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
+  prTagTxt: { fontSize: 9, color: C.primary, fontWeight: '800' },
+  delBtn: { padding: 4 },
 });

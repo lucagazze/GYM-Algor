@@ -1,67 +1,51 @@
-import '@/global.css';
 import { Platform } from 'react-native';
 
-export const Colors = {
-  light: {
-    text: '#121214',
-    background: '#F8F9FA',
-    backgroundElement: '#FFFFFF',
-    backgroundSelected: '#FFF3E0',
-    borderColor: '#E2E8F0',
-    textSecondary: '#64748B',
-    accent: '#FF9900', // Dorado/Naranja Beast
-    accentGlow: 'rgba(255, 153, 0, 0.2)',
-    success: '#10B981',
-    danger: '#EF4444',
-    cardBackground: '#FFFFFF',
-  },
-  dark: {
-    text: '#F8FAFC',
-    background: '#0F172A', // Azul noche / asfalto profundo
-    backgroundElement: '#1E293B',
-    backgroundSelected: '#334155',
-    borderColor: '#334155',
-    textSecondary: '#94A3B8',
-    accent: '#F59E0B', // Dorado intenso
-    accentGlow: 'rgba(245, 158, 11, 0.25)',
-    success: '#10B981',
-    danger: '#EF4444',
-    cardBackground: '#1E293B',
-  },
+// Legacy exports — keep for old components (explore, themed-text, etc.)
+export const Fonts = {
+  mono: Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' }),
 } as const;
 
-export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
-
-export const Fonts = Platform.select({
-  ios: {
-    sans: 'system-ui',
-    serif: 'ui-serif',
-    rounded: 'ui-rounded',
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
-  },
-});
+export type ThemeColor = 'text' | 'textSecondary' | 'background' | 'backgroundElement' | 'border';
 
 export const Spacing = {
-  half: 2,
-  one: 4,
-  two: 8,
-  three: 16,
-  four: 24,
-  five: 32,
-  six: 64,
+  one: 4, two: 8, three: 12, four: 16, five: 20, six: 24, seven: 28, eight: 32,
 } as const;
 
+const _theme = {
+  text: '#e5e2e1',
+  textSecondary: '#888',
+  background: '#131313',
+  backgroundElement: '#1a1a1a',
+  border: '#2a2a2a',
+};
+export const Colors = { light: _theme, dark: _theme };
+
+export const C = {
+  bg: '#131313',
+  surface: '#1a1a1a',
+  surfaceHigh: '#252525',
+  border: '#2a2a2a',
+  borderLight: '#333',
+  primary: '#f65b69',
+  primaryDim: '#ffb3b4',
+  text: '#e5e2e1',
+  textSub: '#c8c6c5',
+  muted: '#999',
+  mutedLight: '#bbb',
+  success: '#4ADE80',
+  error: '#ff6b6b',
+  empuje: '#f65b69',
+  traccion: '#60a5fa',
+  pierna: '#34d399',
+  skill: '#fbbf24',
+} as const;
+
+export const CAT_COLOR: Record<string, string> = {
+  EMPUJE: C.empuje,
+  TRACCION: C.traccion,
+  PIERNA: C.pierna,
+  SKILL: C.skill,
+};
+
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
-export const MaxContentWidth = 850;
+export const MaxContentWidth = 480;

@@ -12,17 +12,21 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: '#0A0A0A',
-            borderTopColor: '#1A1A1A',
+            backgroundColor: '#131313',
+            borderTopColor: '#222',
             borderTopWidth: 1,
-            height: Platform.OS === 'ios' ? 90 : 72,
-            paddingBottom: Platform.OS === 'ios' ? 22 : 10,
-            paddingTop: 6,
+            height: Platform.OS === 'ios' ? 88 : 68,
+            paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+            paddingTop: 8,
           },
-          tabBarActiveTintColor: '#E63946',
-          tabBarInactiveTintColor: '#3A3A3A',
-          tabBarLabelStyle: { fontSize: 9, fontWeight: '700', letterSpacing: 0, marginTop: 2 },
-          tabBarIconStyle: { marginBottom: 0 },
+          tabBarActiveTintColor: '#f65b69',
+          tabBarInactiveTintColor: '#444',
+          tabBarLabelStyle: {
+            fontSize: 9,
+            fontWeight: '700',
+            letterSpacing: 0.5,
+            marginTop: 1,
+          },
         }}
       >
         <Tabs.Screen
@@ -30,7 +34,25 @@ export default function RootLayout() {
           options={{
             title: 'LOG',
             tabBarIcon: ({ color, size }) => (
-              <MaterialCommunityIcons name="pencil-plus-outline" size={size} color={color} />
+              <MaterialCommunityIcons name="pencil-plus-outline" size={22} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="routines"
+          options={{
+            title: 'RUTINAS',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="list-outline" size={22} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="history"
+          options={{
+            title: 'HISTORIAL',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="calendar-outline" size={22} color={color} />
             ),
           }}
         />
@@ -39,39 +61,20 @@ export default function RootLayout() {
           options={{
             title: 'PROGRESO',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="trending-up" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="history"
-          options={{
-            title: 'HISTORIAL',
-            tabBarLabel: 'HISTORIAL',
-            tabBarIcon: ({ color, size }) => (
-              <Ionicons name="calendar-outline" size={size} color={color} />
-            ),
-          }}
-        />
-        <Tabs.Screen
-          name="records"
-          options={{
-            title: '1RM',
-            tabBarIcon: ({ color, size }) => (
-              <MaterialCommunityIcons name="trophy-outline" size={size} color={color} />
+              <Ionicons name="trending-up" size={22} color={color} />
             ),
           }}
         />
         <Tabs.Screen
           name="exercises"
           options={{
-            title: 'EJERCICIOS',
-            tabBarLabel: 'EJERCS.',
+            title: 'EJERCS.',
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="barbell-outline" size={size} color={color} />
+              <Ionicons name="barbell-outline" size={22} color={color} />
             ),
           }}
         />
+        <Tabs.Screen name="records" options={{ href: null }} />
         <Tabs.Screen name="explore" options={{ href: null }} />
       </Tabs>
     </>
