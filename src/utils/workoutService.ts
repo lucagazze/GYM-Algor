@@ -454,7 +454,7 @@ export const workoutService = {
     try {
       const { error } = await supabase
         .from('progression_plans')
-        .upsert([plan], { onConflict: 'exercise_id' });
+        .upsert([plan], { onConflict: 'exercise_id,user_id' });
       if (error) return { error: error.message };
       return {};
     } catch (e: any) { return { error: e.message }; }
