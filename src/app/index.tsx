@@ -156,10 +156,7 @@ export default function LogScreen() {
       const bw = await workoutService.getSavedBodyWeight();
       setBodyW(parseFloat(bw) || 86);
       if (user) {
-        const { data: profile, error: profileErr } = await supabase
-          .from('profiles').select('is_admin').eq('id', user.id).single();
-        console.log('[admin check]', { profile, profileErr, userId: user.id });
-        setIsAdmin(profile?.is_admin ?? false);
+        setIsAdmin(user.id === '4268fa86-a71b-48bb-8421-998177c39f3d');
       }
       setLoadingEx(false);
     })();
