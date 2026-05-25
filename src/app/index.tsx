@@ -6,7 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { workoutService, RM, Exercise, WorkoutLog } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
 import PlateCalculator from '../components/PlateCalculator';
@@ -125,6 +125,8 @@ export default function LogScreen() {
   const restRef = useRef<NodeJS.Timeout | null>(null);
 
   const [calcOpen, setCalcOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const router = useRouter();
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
@@ -145,11 +147,19 @@ export default function LogScreen() {
   useEffect(() => {
     (async () => {
       setLoadingEx(true);
-      const list = await workoutService.getExercises();
+      const [list, { data: { user } }] = await Promise.all([
+        workoutService.getExercises(),
+        supabase.auth.getUser(),
+      ]);
       setExercises(list);
       if (list.length > 0) setSelected(list[0]);
       const bw = await workoutService.getSavedBodyWeight();
       setBodyW(parseFloat(bw) || 86);
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles').select('is_admin').eq('id', user.id).single();
+        setIsAdmin(profile?.is_admin ?? false);
+      }
       setLoadingEx(false);
     })();
   }, []);
@@ -303,6 +313,15 @@ export default function LogScreen() {
                 <Text style={s.restTxt}>{fmtTimer(restSecs)}</Text>
               </TouchableOpacity>
             </View>
+          )}
+          {isAdmin && (
+            <TouchableOpacity
+              onPress={() => router.push('/admin')}
+              style={s.adminBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="shield-checkmark-outline" size={16} color={C.primary} />
+            </TouchableOpacity>
           )}
           <TouchableOpacity
             onPress={() => supabase.auth.signOut()}
@@ -584,6 +603,7 @@ const s = StyleSheet.create({
   logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
   restBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.borderLight, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
   restTxt: { color: C.traccion, fontSize: 11, fontWeight: '800' },
+  adminBtn: { width: 30, height: 30, borderRadius: 10, backgroundColor: C.primaryDim, borderWidth: 1, borderColor: C.primary + '60', alignItems: 'center', justifyContent: 'center' },
   logoutBtn: { width: 30, height: 30, borderRadius: 10, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
   restTargetBtn: { backgroundColor: C.surfaceHigh, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border },
   restTargetTxt: { fontSize: 10, color: C.mutedLight, fontWeight: '800' },

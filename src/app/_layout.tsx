@@ -14,26 +14,14 @@ import LoginScreen from './login';
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) checkAdmin(session.user.id);
-    });
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) checkAdmin(session.user.id);
-      else setIsAdmin(false);
     });
     return () => subscription.unsubscribe();
   }, []);
-
-  const checkAdmin = async (userId: string) => {
-    const { data } = await supabase
-      .from('profiles').select('is_admin').eq('id', userId).single();
-    setIsAdmin(data?.is_admin ?? false);
-  };
 
   if (session === undefined) {
     return (
@@ -141,17 +129,7 @@ export default function RootLayout() {
             ),
           }}
         />
-        {/* Admin tab — only visible to admins */}
-        <Tabs.Screen
-          name="admin"
-          options={{
-            title: 'ADMIN',
-            tabBarIcon: ({ color }) => (
-              <Ionicons name="shield-checkmark-outline" size={22} color={color} />
-            ),
-            tabBarButton: isAdmin ? undefined : () => null,
-          }}
-        />
+        <Tabs.Screen name="admin" options={{ href: null }} />
         <Tabs.Screen name="records" options={{ href: null }} />
         <Tabs.Screen name="explore" options={{ href: null }} />
         <Tabs.Screen name="login" options={{ href: null }} />
