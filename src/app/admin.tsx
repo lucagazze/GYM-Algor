@@ -34,16 +34,17 @@ export default function AdminScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
+  const ADMIN_ID = '4268fa86-a71b-48bb-8421-998177c39f3d';
+
   const load = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
-    const { data: myProfile } = await supabase
-      .from('profiles').select('is_admin').eq('id', user.id).single();
-    setIsAdmin(myProfile?.is_admin ?? false);
+    const admin = user.id === ADMIN_ID;
+    setIsAdmin(admin);
 
-    if (myProfile?.is_admin) {
+    if (admin) {
       const { data } = await supabase
         .from('profiles')
         .select('*')
