@@ -23,8 +23,7 @@ serve(async (req) => {
     if (authErr || !user) return json({ error: 'Token inválido' }, 401)
 
     // Verify caller is admin
-    const { data: profile } = await admin.from('profiles').select('is_admin').eq('id', user.id).single()
-    if (!profile?.is_admin) return json({ error: 'Acceso denegado' }, 403)
+    if (user.id !== '4268fa86-a71b-48bb-8421-998177c39f3d') return json({ error: 'Acceso denegado' }, 403)
 
     const { username, password, display_name } = await req.json()
     if (!username?.trim() || !password?.trim()) return json({ error: 'Faltan datos' }, 400)
