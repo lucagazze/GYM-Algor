@@ -31,6 +31,8 @@ export default function AdminScreen() {
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState('');
+  const [createSuccess, setCreateSuccess] = useState('');
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
@@ -55,22 +57,19 @@ export default function AdminScreen() {
   };
 
   const createUser = async () => {
+    setCreateError('');
+    setCreateSuccess('');
     const slug = username.trim().toLowerCase().replace(/\s+/g, '_');
-    if (!slug || !password.trim()) {
-      Alert.alert('Faltan datos', 'Ingresá usuario y contraseña.');
-      return;
-    }
-    if (password.trim().length < 6) {
-      Alert.alert('Contraseña muy corta', 'Mínimo 6 caracteres.');
-      return;
-    }
+    if (!slug || !password.trim()) { setCreateError('Ingresá usuario y contraseña.'); return; }
+    if (password.trim().length < 6) { setCreateError('La contraseña debe tener al menos 6 caracteres.'); return; }
     setCreating(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setCreateError('Sin sesión activa.'); return; }
       const res = await fetch(`${SUPABASE_URL}/functions/v1/create-user`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -80,14 +79,12 @@ export default function AdminScreen() {
         }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? 'Error desconocido');
-
-      Alert.alert('✅ Usuario creado', `@${slug} ya puede entrar con su contraseña.`);
-      setCreateOpen(false);
+      if (!res.ok) { setCreateError(json.error ?? `Error ${res.status}`); return; }
+      setCreateSuccess(`@${slug} creado correctamente.`);
       setUsername(''); setDisplayName(''); setPassword('');
       await load();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      setCreateError(e.message ?? 'Error de red al conectar con el servidor.');
     } finally {
       setCreating(false);
     }
@@ -249,7 +246,18 @@ export default function AdminScreen() {
                 </View>
               )}
 
-              <TouchableOpacity onPress={createUser} disabled={creating} activeOpacity={0.85} style={{ marginTop: 24 }}>
+              {createError ? (
+                <View style={{ backgroundColor: '#ff000020', borderWidth: 1, borderColor: '#ff000060', borderRadius: 10, padding: 12, marginTop: 14 }}>
+                  <Text style={{ color: '#ff4444', fontSize: 13, fontWeight: '600' }}>{createError}</Text>
+                </View>
+              ) : null}
+              {createSuccess ? (
+                <View style={{ backgroundColor: C.success + '20', borderWidth: 1, borderColor: C.success + '60', borderRadius: 10, padding: 12, marginTop: 14 }}>
+                  <Text style={{ color: C.success, fontSize: 13, fontWeight: '600' }}>{createSuccess}</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity onPress={createUser} disabled={creating} activeOpacity={0.85} style={{ marginTop: 16 }}>
                 <LinearGradient
                   colors={[C.primary, '#D91646']}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
