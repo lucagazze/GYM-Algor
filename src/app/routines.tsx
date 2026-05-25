@@ -30,8 +30,11 @@ function RowStepper({ label, value, onChange, step = 1, min = 0, decimals = 0, o
 }) {
   const fmt = (v: number) => decimals > 0 ? v.toFixed(decimals) : String(v);
   const [text, setText] = React.useState(fmt(value));
+  const editing = React.useRef(false);
 
-  React.useEffect(() => { setText(fmt(value)); }, [value]);
+  React.useEffect(() => {
+    if (!editing.current) setText(fmt(value));
+  }, [value]);
 
   const dec = () => onChange(Math.max(min, Math.round((value - step) * 100) / 100));
   const inc = () => onChange(Math.round((value + step) * 100) / 100);
@@ -54,12 +57,16 @@ function RowStepper({ label, value, onChange, step = 1, min = 0, decimals = 0, o
           <TextInput
             style={rs.val}
             value={text}
+            onFocus={() => { editing.current = true; }}
             onChangeText={t => {
               setText(t);
               const n = parseFloat(t.replace(',', '.'));
               if (!isNaN(n) && n >= min) onChange(n);
             }}
-            onBlur={() => setText(fmt(value))}
+            onBlur={() => {
+              editing.current = false;
+              setText(fmt(value));
+            }}
             keyboardType="decimal-pad"
             textAlign="center"
             selectTextOnFocus
