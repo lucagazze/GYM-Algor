@@ -14,18 +14,27 @@ import LoginScreen from './login';
 
 export default function RootLayout() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session) checkAdmin(session.user.id);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session) checkAdmin(session.user.id);
+      else setIsAdmin(false);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  // Loading while checking session
+  const checkAdmin = async (userId: string) => {
+    const { data } = await supabase
+      .from('profiles').select('is_admin').eq('id', userId).single();
+    setIsAdmin(data?.is_admin ?? false);
+  };
+
   if (session === undefined) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
@@ -35,7 +44,6 @@ export default function RootLayout() {
     );
   }
 
-  // Not logged in → show login screen
   if (!session) {
     return (
       <>
@@ -45,7 +53,6 @@ export default function RootLayout() {
     );
   }
 
-  // Logged in → show tabs
   return (
     <>
       <StatusBar style="light" />
@@ -132,6 +139,17 @@ export default function RootLayout() {
             tabBarIcon: ({ color }) => (
               <Ionicons name="barbell-outline" size={22} color={color} />
             ),
+          }}
+        />
+        {/* Admin tab — only visible to admins */}
+        <Tabs.Screen
+          name="admin"
+          options={{
+            title: 'ADMIN',
+            tabBarIcon: ({ color }) => (
+              <Ionicons name="shield-checkmark-outline" size={22} color={color} />
+            ),
+            tabBarButton: isAdmin ? undefined : () => null,
           }}
         />
         <Tabs.Screen name="records" options={{ href: null }} />

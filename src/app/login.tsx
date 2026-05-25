@@ -9,20 +9,26 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../utils/supabase';
 import { C } from '../constants/theme';
 
+// If username contains '@', use as-is (admin email login).
+// Otherwise append '@algorlift.app' (regular username login).
+function toEmail(input: string): string {
+  return input.includes('@') ? input.trim() : `${input.trim().toLowerCase()}@algorlift.app`;
+}
+
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPass, setShowPass] = useState(false);
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) {
-      Alert.alert('Faltan datos', 'Ingresá tu email y contraseña.');
+    if (!username.trim() || !password) {
+      Alert.alert('Faltan datos', 'Ingresá tu usuario y contraseña.');
       return;
     }
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: toEmail(username),
       password,
     });
     setLoading(false);
@@ -30,7 +36,7 @@ export default function LoginScreen() {
       Alert.alert(
         'Error al entrar',
         error.message === 'Invalid login credentials'
-          ? 'Email o contraseña incorrectos.'
+          ? 'Usuario o contraseña incorrectos.'
           : error.message
       );
     }
@@ -53,16 +59,15 @@ export default function LoginScreen() {
           <Text style={s.cardTitle}>Iniciar sesión</Text>
 
           <View style={s.fieldGroup}>
-            <Text style={s.fieldLabel}>EMAIL</Text>
+            <Text style={s.fieldLabel}>USUARIO</Text>
             <View style={s.inputRow}>
-              <Ionicons name="mail-outline" size={15} color={C.muted} style={{ marginRight: 8 }} />
+              <Ionicons name="person-outline" size={15} color={C.muted} style={{ marginRight: 8 }} />
               <TextInput
                 style={s.input}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="tu@email.com"
+                value={username}
+                onChangeText={setUsername}
+                placeholder="tu_usuario"
                 placeholderTextColor={C.muted}
-                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
               />
@@ -112,8 +117,6 @@ export default function LoginScreen() {
             </LinearGradient>
           </TouchableOpacity>
         </View>
-
-        <Text style={s.footer}>Pedile el acceso a Luca 💪</Text>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -158,6 +161,4 @@ const s = StyleSheet.create({
 
   loginBtn: { height: 50, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   loginBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 14, letterSpacing: 1.5 },
-
-  footer: { textAlign: 'center', fontSize: 12, color: C.muted },
 });
