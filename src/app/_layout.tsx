@@ -1,14 +1,51 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform } from 'react-native';
-
+import { Platform, View, ActivityIndicator } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet } from 'react-native';
+import { Session } from '@supabase/supabase-js';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { C } from '../constants/theme';
+import { supabase } from '../utils/supabase';
+import LoginScreen from './login';
 
 export default function RootLayout() {
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Loading while checking session
+  if (session === undefined) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: C.bg, justifyContent: 'center', alignItems: 'center' }}>
+        <StatusBar style="light" />
+        <ActivityIndicator size="large" color={C.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  // Not logged in → show login screen
+  if (!session) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <LoginScreen />
+      </>
+    );
+  }
+
+  // Logged in → show tabs
   return (
     <>
       <StatusBar style="light" />
@@ -56,7 +93,7 @@ export default function RootLayout() {
           name="index"
           options={{
             title: 'LOG',
-            tabBarIcon: ({ color, size }) => (
+            tabBarIcon: ({ color }) => (
               <MaterialCommunityIcons name="pencil-plus-outline" size={22} color={color} />
             ),
           }}
@@ -65,7 +102,7 @@ export default function RootLayout() {
           name="routines"
           options={{
             title: 'RUTINAS',
-            tabBarIcon: ({ color, size }) => (
+            tabBarIcon: ({ color }) => (
               <Ionicons name="list-outline" size={22} color={color} />
             ),
           }}
@@ -74,7 +111,7 @@ export default function RootLayout() {
           name="history"
           options={{
             title: 'HISTORIAL',
-            tabBarIcon: ({ color, size }) => (
+            tabBarIcon: ({ color }) => (
               <Ionicons name="calendar-outline" size={22} color={color} />
             ),
           }}
@@ -83,7 +120,7 @@ export default function RootLayout() {
           name="progress"
           options={{
             title: 'PROGRESO',
-            tabBarIcon: ({ color, size }) => (
+            tabBarIcon: ({ color }) => (
               <Ionicons name="trending-up" size={22} color={color} />
             ),
           }}
@@ -92,13 +129,14 @@ export default function RootLayout() {
           name="exercises"
           options={{
             title: 'EJERCS.',
-            tabBarIcon: ({ color, size }) => (
+            tabBarIcon: ({ color }) => (
               <Ionicons name="barbell-outline" size={22} color={color} />
             ),
           }}
         />
         <Tabs.Screen name="records" options={{ href: null }} />
         <Tabs.Screen name="explore" options={{ href: null }} />
+        <Tabs.Screen name="login" options={{ href: null }} />
       </Tabs>
     </>
   );

@@ -10,6 +10,7 @@ import { useFocusEffect } from 'expo-router';
 import { workoutService, RM, Exercise, WorkoutLog } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
 import PlateCalculator from '../components/PlateCalculator';
+import { supabase } from '../utils/supabase';
 
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -277,17 +278,26 @@ export default function LogScreen() {
     <SafeAreaView style={s.container} edges={['top','left','right']}>
       <View style={s.header}>
         <Text style={s.logo}>ALGO<Text style={{ color: C.primary }}>R</Text>LIFT</Text>
-        {restActive && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <TouchableOpacity onPress={() => setRestTarget(t => t === 60 ? 90 : t === 90 ? 120 : t === 120 ? 180 : 60)} style={s.restTargetBtn}>
-              <Text style={s.restTargetTxt}>{restTarget / 60}m</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setRestActive(false); setRestSecs(0); }} style={[s.restBadge, restSecs >= restTarget && { backgroundColor: C.success }]}>
-              <Ionicons name="timer-outline" size={12} color="#fff" />
-              <Text style={s.restTxt}>{fmtTimer(restSecs)}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {restActive && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <TouchableOpacity onPress={() => setRestTarget(t => t === 60 ? 90 : t === 90 ? 120 : t === 120 ? 180 : 60)} style={s.restTargetBtn}>
+                <Text style={s.restTargetTxt}>{restTarget / 60}m</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setRestActive(false); setRestSecs(0); }} style={[s.restBadge, restSecs >= restTarget && { backgroundColor: C.success }]}>
+                <Ionicons name="timer-outline" size={12} color="#fff" />
+                <Text style={s.restTxt}>{fmtTimer(restSecs)}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <TouchableOpacity
+            onPress={() => supabase.auth.signOut()}
+            style={s.logoutBtn}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={16} color={C.muted} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -560,6 +570,7 @@ const s = StyleSheet.create({
   logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
   restBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.borderLight, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
   restTxt: { color: C.traccion, fontSize: 11, fontWeight: '800' },
+  logoutBtn: { width: 30, height: 30, borderRadius: 10, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
   restTargetBtn: { backgroundColor: C.surfaceHigh, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderColor: C.border },
   restTargetTxt: { fontSize: 10, color: C.mutedLight, fontWeight: '800' },
   scroll: { padding: 12, paddingBottom: 100, gap: 10 },
