@@ -156,8 +156,9 @@ export default function LogScreen() {
       const bw = await workoutService.getSavedBodyWeight();
       setBodyW(parseFloat(bw) || 86);
       if (user) {
-        const { data: profile } = await supabase
+        const { data: profile, error: profileErr } = await supabase
           .from('profiles').select('is_admin').eq('id', user.id).single();
+        console.log('[admin check]', { profile, profileErr, userId: user.id });
         setIsAdmin(profile?.is_admin ?? false);
       }
       setLoadingEx(false);
@@ -301,7 +302,18 @@ export default function LogScreen() {
   return (
     <SafeAreaView style={s.container} edges={['top','left','right']}>
       <View style={s.header}>
-        <Text style={s.logo}>ALGO<Text style={{ color: C.primary }}>R</Text>LIFT</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={s.logo}>ALGO<Text style={{ color: C.primary }}>R</Text>LIFT</Text>
+          {isAdmin && (
+            <TouchableOpacity
+              onPress={() => router.push('/admin')}
+              style={s.adminBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="shield-checkmark-outline" size={16} color={C.primary} />
+            </TouchableOpacity>
+          )}
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {restActive && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -313,15 +325,6 @@ export default function LogScreen() {
                 <Text style={s.restTxt}>{fmtTimer(restSecs)}</Text>
               </TouchableOpacity>
             </View>
-          )}
-          {isAdmin && (
-            <TouchableOpacity
-              onPress={() => router.push('/admin')}
-              style={s.adminBtn}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="shield-checkmark-outline" size={16} color={C.primary} />
-            </TouchableOpacity>
           )}
           <TouchableOpacity
             onPress={() => supabase.auth.signOut()}
