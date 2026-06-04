@@ -256,7 +256,6 @@ export default function ExercisesScreen() {
                         {ex.muscle_group ? (
                           <Text style={s.exMuscle} numberOfLines={1}>{ex.muscle_group}</Text>
                         ) : null}
-                        <Text style={s.exTypeIcon}>{typeIcon}</Text>
                         <TouchableOpacity
                           onPress={async (e) => {
                             e.stopPropagation?.();
