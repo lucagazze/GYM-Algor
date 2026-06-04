@@ -28,6 +28,7 @@ export interface WorkoutLog {
   is_pr: boolean;
   notes?: string;
   set_number?: number;
+  user_id?: string;
   exercise?: Exercise;
 }
 
@@ -37,6 +38,7 @@ export interface ProgressionPlan {
   target_month: string;
   target_1rm: number;
   year_goal?: number;
+  user_id?: string;
   exercise?: Exercise;
 }
 
@@ -110,6 +112,11 @@ const KEYS = {
   bodyWeight: '@gym_body_weight',
   favorites: '@gym_favorites',
 };
+
+async function uid(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id ?? null;
+}
 
 export const DEFAULT_EXERCISES: Exercise[] = [
   { id: 1, name: 'Dips (fondos)', category: 'EMPUJE', tracking_type: 'weight' },
@@ -204,11 +211,14 @@ export const workoutService = {
 
   // ── Workout Logs ──────────────────────────────────────────────
   async getLogsForExercise(exerciseId: number, limit = 30): Promise<WorkoutLog[]> {
+    const userId = await uid();
+    if (!userId) return [];
     try {
       const { data, error } = await supabase
         .from('workout_logs')
         .select('*')
         .eq('exercise_id', exerciseId)
+        .eq('user_id', userId)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -217,11 +227,14 @@ export const workoutService = {
   },
 
   async getPRLog(exerciseId: number): Promise<WorkoutLog | null> {
+    const userId = await uid();
+    if (!userId) return null;
     try {
       const { data, error } = await supabase
         .from('workout_logs')
         .select('*')
         .eq('exercise_id', exerciseId)
+        .eq('user_id', userId)
         .eq('is_pr', true)
         .order('estimated_1rm', { ascending: false })
         .limit(1)
@@ -231,11 +244,14 @@ export const workoutService = {
   },
 
   async getLastLog(exerciseId: number): Promise<WorkoutLog | null> {
+    const userId = await uid();
+    if (!userId) return null;
     try {
       const { data, error } = await supabase
         .from('workout_logs')
         .select('*')
         .eq('exercise_id', exerciseId)
+        .eq('user_id', userId)
         .order('date', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(1)
@@ -245,12 +261,15 @@ export const workoutService = {
   },
 
   async getTodayLogs(exerciseId: number, date?: string): Promise<WorkoutLog[]> {
+    const userId = await uid();
+    if (!userId) return [];
     const targetDate = date ?? new Date().toISOString().split('T')[0];
     try {
       const { data, error } = await supabase
         .from('workout_logs')
         .select('*')
         .eq('exercise_id', exerciseId)
+        .eq('user_id', userId)
         .eq('date', targetDate)
         .order('created_at', { ascending: true });
       return !error && data ? data : [];
@@ -258,11 +277,14 @@ export const workoutService = {
   },
 
   async getAllRecentLogs(limit = 100): Promise<WorkoutLog[]> {
+    const userId = await uid();
+    if (!userId) return [];
     try {
       const [logsRes, exRes] = await Promise.all([
         supabase
           .from('workout_logs')
           .select('*')
+          .eq('user_id', userId)
           .order('date', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(limit),
@@ -275,14 +297,17 @@ export const workoutService = {
     } catch { return []; }
   },
 
-  async saveLog(log: Omit<WorkoutLog, 'id' | 'is_pr'>): Promise<{ data?: WorkoutLog; offline?: boolean; error?: string }> {
+  async saveLog(log: Omit<WorkoutLog, 'id' | 'is_pr' | 'user_id'>): Promise<{ data?: WorkoutLog; offline?: boolean; error?: string }> {
+    const userId = await uid();
+    if (!userId) return { error: 'No autenticado' };
+
     const best = await this.getBest1RM(log.exercise_id);
     const isPR =
       (log.estimated_1rm > 0 && log.estimated_1rm > best.best1rm) ||
       (log.duration_sec > 0 && log.estimated_1rm === 0 && log.duration_sec > best.bestDuration) ||
       (log.reps > 0 && log.estimated_1rm === 0 && log.duration_sec === 0 && log.reps > best.bestReps);
 
-    const logToSave = { ...log, is_pr: isPR };
+    const logToSave = { ...log, is_pr: isPR, user_id: userId };
 
     try {
       const { data, error } = await supabase
@@ -309,13 +334,21 @@ export const workoutService = {
       await storage.set(KEYS.offlineLogs, JSON.stringify(list.filter(l => l.id !== id)));
       return true;
     }
+    const userId = await uid();
+    if (!userId) return false;
     try {
-      const { error } = await supabase.from('workout_logs').delete().eq('id', id);
+      const { error } = await supabase
+        .from('workout_logs')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
       return !error;
     } catch { return false; }
   },
 
   async syncOfflineLogs(): Promise<number> {
+    const userId = await uid();
+    if (!userId) return 0;
     const str = await storage.get(KEYS.offlineLogs);
     if (!str) return 0;
     const logs: WorkoutLog[] = JSON.parse(str);
@@ -326,7 +359,7 @@ export const workoutService = {
     for (const log of logs) {
       const { id, created_at, exercise, ...clean } = log;
       try {
-        const { error } = await supabase.from('workout_logs').insert([clean]);
+        const { error } = await supabase.from('workout_logs').insert([{ ...clean, user_id: userId }]);
         if (!error) synced++;
         else remaining.push(log);
       } catch { remaining.push(log); }
@@ -343,11 +376,14 @@ export const workoutService = {
 
   // ── Records & Stats ───────────────────────────────────────────
   async getBest1RM(exerciseId: number): Promise<{ best1rm: number; bestDuration: number; bestReps: number; bestDate: string }> {
+    const userId = await uid();
+    if (!userId) return { best1rm: 0, bestDuration: 0, bestReps: 0, bestDate: '' };
     try {
       const { data } = await supabase
         .from('workout_logs')
         .select('estimated_1rm, duration_sec, reps, date')
-        .eq('exercise_id', exerciseId);
+        .eq('exercise_id', exerciseId)
+        .eq('user_id', userId);
       if (!data || data.length === 0) return { best1rm: 0, bestDuration: 0, bestReps: 0, bestDate: '' };
       let best1rm = 0, bestDuration = 0, bestReps = 0, bestDate = '';
       for (const row of data) {
@@ -360,11 +396,14 @@ export const workoutService = {
   },
 
   async getAllRecords(): Promise<ExerciseRecord[]> {
+    const userId = await uid();
+    if (!userId) return [];
     try {
       const exercises = await this.getExercises();
       const { data: plans } = await supabase
         .from('progression_plans')
-        .select('exercise_id, target_1rm, year_goal');
+        .select('exercise_id, target_1rm, year_goal')
+        .eq('user_id', userId);
 
       const records: ExerciseRecord[] = [];
       for (const ex of exercises) {
@@ -373,7 +412,8 @@ export const workoutService = {
         const { data: countData } = await supabase
           .from('workout_logs')
           .select('id', { count: 'exact', head: true })
-          .eq('exercise_id', ex.id);
+          .eq('exercise_id', ex.id)
+          .eq('user_id', userId);
 
         records.push({
           exercise: ex,
@@ -388,11 +428,14 @@ export const workoutService = {
   },
 
   async getMonthlyBests(exerciseId: number): Promise<{ month: string; best1rm: number }[]> {
+    const userId = await uid();
+    if (!userId) return [];
     try {
       const { data, error } = await supabase
         .from('workout_logs')
         .select('date, estimated_1rm, duration_sec, reps')
         .eq('exercise_id', exerciseId)
+        .eq('user_id', userId)
         .order('date', { ascending: true });
       if (error || !data) return [];
 
@@ -406,10 +449,15 @@ export const workoutService = {
     } catch { return []; }
   },
 
-  // ── Progression Plans ─────────────────────────────────────────
   async getActiveDays(): Promise<string[]> {
+    const userId = await uid();
+    if (!userId) return [];
     try {
-      const { data } = await supabase.from('workout_logs').select('date').order('date', { ascending: false });
+      const { data } = await supabase
+        .from('workout_logs')
+        .select('date')
+        .eq('user_id', userId)
+        .order('date', { ascending: false });
       if (!data) return [];
       const set = new Set<string>();
       for (const row of data) set.add(row.date);
@@ -418,18 +466,21 @@ export const workoutService = {
   },
 
   async getWeeklyVolumeByCategory(): Promise<{ category: string; sets: number }[]> {
+    const userId = await uid();
+    if (!userId) return [];
     try {
       const d = new Date();
       d.setDate(d.getDate() - 7);
       const sevenDaysAgo = d.toISOString().split('T')[0];
-      
+
       const { data, error } = await supabase
         .from('workout_logs')
         .select('*, exercise:exercises(*)')
+        .eq('user_id', userId)
         .gte('date', sevenDaysAgo);
-        
+
       if (error || !data) return [];
-      
+
       const counts: Record<string, number> = { EMPUJE: 0, TRACCION: 0, PIERNA: 0, SKILL: 0 };
       for (const row of data) {
         if (row.exercise && row.exercise.category) {
@@ -441,20 +492,25 @@ export const workoutService = {
   },
 
   async getProgressionPlans(): Promise<ProgressionPlan[]> {
+    const userId = await uid();
+    if (!userId) return [];
     try {
       const { data, error } = await supabase
         .from('progression_plans')
         .select('*, exercise:exercises(*)')
+        .eq('user_id', userId)
         .order('target_month');
       return !error && data ? data : [];
     } catch { return []; }
   },
 
-  async upsertPlan(plan: ProgressionPlan): Promise<{ error?: string }> {
+  async upsertPlan(plan: Omit<ProgressionPlan, 'user_id'>): Promise<{ error?: string }> {
+    const userId = await uid();
+    if (!userId) return { error: 'No autenticado' };
     try {
       const { error } = await supabase
         .from('progression_plans')
-        .upsert([plan], { onConflict: 'exercise_id,user_id' });
+        .upsert([{ ...plan, user_id: userId }], { onConflict: 'exercise_id,user_id' });
       if (error) return { error: error.message };
       return {};
     } catch (e: any) { return { error: e.message }; }

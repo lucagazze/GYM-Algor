@@ -351,61 +351,59 @@ export default function RoutinesScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.scroll}>
-        <Text style={s.pageTitle}>Rutinas</Text>
-        <Text style={s.pageSub}>Entrenamiento con estructura</Text>
-
         {loading ? (
           <ActivityIndicator color={C.primary} style={{ marginTop: 60 }} />
         ) : routines.length === 0 ? (
           <View style={s.empty}>
-            <Ionicons name="list-outline" size={56} color="#222" />
-            <Text style={s.emptyTitle}>Sin rutinas todavía</Text>
-            <Text style={s.emptySub}>Crea tu primera rutina y entrénala en orden</Text>
+            <Ionicons name="list-outline" size={44} color="#222" />
+            <Text style={s.emptyTitle}>Sin rutinas</Text>
+            <Text style={s.emptySub}>Creá tu primera rutina y entrenala en orden</Text>
           </View>
         ) : (
-          routines.map(r => (
-            <View key={r.id} style={s.routineCard}>
-              <View style={s.routineCardTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.routineName}>{r.name}</Text>
-                  <Text style={s.routineExCount}>{r.exerciseIds.length} ejercicio{r.exerciseIds.length !== 1 ? 's' : ''}</Text>
-                </View>
-                <TouchableOpacity onPress={() => openEdit(r)} style={[s.delBtn, { marginRight: 8 }]}>
-                  <Ionicons name="pencil-outline" size={18} color={C.muted} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => deleteRoutine(r.id, r.name)} style={s.delBtn}>
-                  <Ionicons name="trash-outline" size={18} color={C.muted} />
-                </TouchableOpacity>
-              </View>
-
-              <View style={s.exPreviewList}>
-                {r.exerciseIds.slice(0, 4).map((id, i) => {
-                  const ex = getEx(id);
-                  const cc = CAT_COLOR[ex?.category ?? ''] ?? C.muted;
-                  return (
-                    <View key={id} style={s.exPreviewRow}>
-                      <View style={[s.exPreviewDot, { backgroundColor: cc }]} />
-                      <Text style={s.exPreviewName} numberOfLines={1}>{ex?.name ?? `Ejercicio ${id}`}</Text>
+          routines.map(r => {
+            const firstCat = getEx(r.exerciseIds[0])?.category;
+            const accentColor = CAT_COLOR[firstCat ?? ''] ?? C.primary;
+            return (
+              <View key={r.id} style={s.routineCard}>
+                <View style={[s.cardAccent, { backgroundColor: accentColor }]} />
+                <View style={s.cardBody}>
+                  {/* Top row */}
+                  <View style={s.cardRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.routineName} numberOfLines={1}>{r.name}</Text>
+                      <Text style={s.routineExCount}>{r.exerciseIds.length} ejercicio{r.exerciseIds.length !== 1 ? 's' : ''}</Text>
                     </View>
-                  );
-                })}
-                {r.exerciseIds.length > 4 && (
-                  <Text style={s.moreExTxt}>+{r.exerciseIds.length - 4} más</Text>
-                )}
-              </View>
+                    <TouchableOpacity onPress={() => openEdit(r)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}>
+                      <Ionicons name="pencil-outline" size={15} color={C.muted} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => deleteRoutine(r.id, r.name)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}>
+                      <Ionicons name="trash-outline" size={15} color={C.muted} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => startSession(r)} activeOpacity={0.8} style={{ marginLeft: 6 }}>
+                      <LinearGradient
+                        colors={[C.primary, '#D91646']}
+                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                        style={s.playBtn}
+                      >
+                        <Ionicons name="play" size={14} color="#fff" />
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
 
-              <TouchableOpacity onPress={() => startSession(r)} activeOpacity={0.8}>
-                <LinearGradient
-                  colors={[C.primary, '#D91646']}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={s.startBtn}
-                >
-                  <Ionicons name="play" size={18} color="#fff" />
-                  <Text style={s.startBtnTxt}>EMPEZAR SESIÓN</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          ))
+                  {/* Exercise dots */}
+                  <View style={s.dotsRow}>
+                    {r.exerciseIds.map((id, i) => {
+                      const ex = getEx(id);
+                      const cc = CAT_COLOR[ex?.category ?? ''] ?? C.muted;
+                      return (
+                        <View key={id} style={[s.dot, { backgroundColor: cc }]} />
+                      );
+                    })}
+                  </View>
+                </View>
+              </View>
+            );
+          })
         )}
       </ScrollView>
 
@@ -710,30 +708,26 @@ export default function RoutinesScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
-  newBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
-  newBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 11, letterSpacing: 0.5 },
-  scroll: { padding: 14, paddingBottom: 100, gap: 12 },
-  pageTitle: { fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 2 },
-  pageSub: { fontSize: 13, color: C.muted, marginBottom: 6 },
+  newBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 6 },
+  newBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 10, letterSpacing: 0.5 },
+  scroll: { padding: 12, paddingBottom: 100, gap: 8 },
 
-  empty: { paddingTop: 60, alignItems: 'center', gap: 10 },
-  emptyTitle: { fontSize: 16, fontWeight: '800', color: C.mutedLight },
-  emptySub: { fontSize: 13, color: C.muted, textAlign: 'center', maxWidth: 260 },
+  empty: { paddingTop: 60, alignItems: 'center', gap: 8 },
+  emptyTitle: { fontSize: 15, fontWeight: '800', color: C.mutedLight },
+  emptySub: { fontSize: 12, color: C.muted, textAlign: 'center', maxWidth: 240 },
 
-  routineCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 18, padding: 14, gap: 0, elevation: 4, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  routineCardTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 12 },
-  routineName: { fontSize: 20, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
-  routineExCount: { fontSize: 12, color: C.mutedLight, marginTop: 4, fontWeight: '600' },
-  delBtn: { padding: 4 },
-  exPreviewList: { gap: 6, marginBottom: 16 },
-  exPreviewRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  exPreviewDot: { width: 6, height: 6, borderRadius: 3 },
-  exPreviewName: { fontSize: 13, color: C.textSub, fontWeight: '700', flex: 1 },
-  moreExTxt: { fontSize: 12, color: C.muted, paddingLeft: 16, fontWeight: '600' },
-  startBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 12 },
-  startBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 13, letterSpacing: 1.5, textTransform: 'uppercase' },
+  routineCard: { flexDirection: 'row', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
+  cardAccent: { width: 3, alignSelf: 'stretch' },
+  cardBody: { flex: 1, paddingHorizontal: 12, paddingVertical: 10, gap: 7 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  routineName: { fontSize: 15, fontWeight: '900', color: C.text, letterSpacing: -0.3 },
+  routineExCount: { fontSize: 10, color: C.muted, fontWeight: '600', marginTop: 1 },
+  iconBtn: { padding: 4 },
+  playBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  dotsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  dot: { width: 7, height: 7, borderRadius: 4 },
 
   // Modal/sheet shared
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
