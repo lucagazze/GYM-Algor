@@ -203,7 +203,7 @@ export default function ExercisesScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         style={s.catRow}
-        contentContainerStyle={{ gap: 7, paddingHorizontal: 14 }}
+        contentContainerStyle={{ gap: 8, paddingHorizontal: 14, paddingVertical: 10 }}
       >
         {cats.map(c => {
           const active = filterCat === c;
@@ -214,7 +214,6 @@ export default function ExercisesScreen() {
               style={[s.catChip, active && { backgroundColor: col + '22', borderColor: col }]}
               onPress={() => setFilterCat(c)}
             >
-              {c !== 'TODOS' && <Text style={{ fontSize: 11 }}>{CAT_ICON[c] ?? ''} </Text>}
               <Text style={[s.catChipTxt, active && { color: col }]}>{c}</Text>
             </TouchableOpacity>
           );
@@ -233,7 +232,6 @@ export default function ExercisesScreen() {
               <View key={muscle} style={s.catSection}>
                 {/* Section header */}
                 <View style={[s.catSectionHeader, { borderLeftColor: cc }]}>
-                  <Text style={s.catSectionIcon}>{MUSCLE_EMOJI[muscle] ?? '•'}</Text>
                   <Text style={[s.catSectionLabel, { color: cc }]}>{muscle.toUpperCase()}</Text>
                   <Text style={s.catSectionCount}>{items.length}</Text>
                 </View>
@@ -407,16 +405,15 @@ const s = StyleSheet.create({
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
   addBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 11, letterSpacing: 0.5 },
 
-  catRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, maxHeight: 50, flexGrow: 0 },
-  catChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
-  catChipTxt: { color: C.mutedLight, fontSize: 11, fontWeight: '800' },
+  catRow: { borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
+  catChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  catChipTxt: { color: C.mutedLight, fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
 
   scroll: { padding: 12, paddingBottom: 100, gap: 6 },
 
   catSection: { gap: 0 },
-  catSectionHeader: { flexDirection: 'row', alignItems: 'center', borderLeftWidth: 3, paddingLeft: 10, paddingVertical: 8, gap: 6, marginTop: 4 },
-  catSectionIcon: { fontSize: 13 },
-  catSectionLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 1, flex: 1 },
+  catSectionHeader: { flexDirection: 'row', alignItems: 'center', borderLeftWidth: 3, paddingLeft: 10, paddingVertical: 8, gap: 6, marginTop: 6 },
+  catSectionLabel: { fontSize: 10, fontWeight: '900', letterSpacing: 1.2, flex: 1 },
   catSectionCount: { fontSize: 10, color: C.muted, fontWeight: '700' },
 
   tableWrap: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden', marginTop: 4 },
