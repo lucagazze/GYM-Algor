@@ -14,6 +14,42 @@ const CAT_ICON: Record<string, string> = {
   EMPUJE: '💪', TRACCION: '🙌', PIERNA: '🦵', SKILL: '⭐',
 };
 
+// Muscle group display order + colors
+const MUSCLE_ORDER = [
+  'Pecho', 'Hombros', 'Tríceps', 'Bíceps',
+  'Espalda', 'Trapecios',
+  'Cuádriceps', 'Isquiotibiales', 'Glúteos', 'Gemelos', 'Sóleo',
+  'Core', 'Abdominales',
+  'Otros',
+];
+
+const MUSCLE_COLOR: Record<string, string> = {
+  'Pecho':          '#FF2A5F',
+  'Hombros':        '#FF6B35',
+  'Tríceps':        '#FF2A5F',
+  'Bíceps':         '#00E5FF',
+  'Espalda':        '#00E5FF',
+  'Trapecios':      '#0EA5E9',
+  'Cuádriceps':     '#A855F7',
+  'Isquiotibiales': '#9333EA',
+  'Glúteos':        '#C084FC',
+  'Gemelos':        '#A855F7',
+  'Sóleo':          '#A855F7',
+  'Core':           '#EAB308',
+  'Abdominales':    '#EAB308',
+  'Otros':          '#71717A',
+};
+
+const MUSCLE_EMOJI: Record<string, string> = {
+  'Pecho':          '🫁', 'Hombros':        '🔺',
+  'Tríceps':        '💪', 'Bíceps':         '💪',
+  'Espalda':        '🙌', 'Trapecios':      '🙌',
+  'Cuádriceps':     '🦵', 'Isquiotibiales': '🦵',
+  'Glúteos':        '🍑', 'Gemelos':        '🦵',
+  'Sóleo':          '🦵', 'Core':           '⭐',
+  'Abdominales':    '⭐', 'Otros':          '•',
+};
+
 type Category = 'EMPUJE' | 'TRACCION' | 'PIERNA' | 'SKILL';
 type TrackingType = 'weight' | 'time' | 'reps';
 
@@ -128,13 +164,29 @@ export default function ExercisesScreen() {
   };
 
   const cats = ['TODOS', ...CATEGORIES];
-  const filtered = filterCat === 'TODOS' ? exercises : exercises.filter(e => e.category === filterCat);
-  const grouped = CATEGORIES.reduce((acc, cat) => {
-    const items = filtered.filter(e => e.category === cat)
-      .sort((a, b) => (b.is_favorite ? 1 : 0) - (a.is_favorite ? 1 : 0));
-    if (items.length > 0) acc[cat] = items;
-    return acc;
-  }, {} as Record<string, Exercise[]>);
+
+  const getMuscle = (ex: Exercise): string => ex.muscle_group?.trim() || 'Otros';
+
+  const filtered = filterCat === 'TODOS'
+    ? exercises
+    : exercises.filter(e => e.category === filterCat);
+
+  const grouped: Record<string, Exercise[]> = {};
+  for (const ex of filtered) {
+    const m = getMuscle(ex);
+    if (!grouped[m]) grouped[m] = [];
+    grouped[m].push(ex);
+  }
+  // Sort items within each group: favorites first, then alphabetical
+  for (const m of Object.keys(grouped)) {
+    grouped[m].sort((a, b) =>
+      (b.is_favorite ? 1 : 0) - (a.is_favorite ? 1 : 0) ||
+      a.name.localeCompare(b.name)
+    );
+  }
+  // Sort groups by canonical order
+  const sortedMuscles = MUSCLE_ORDER.filter(m => grouped[m])
+    .concat(Object.keys(grouped).filter(m => !MUSCLE_ORDER.includes(m)));
 
   return (
     <SafeAreaView style={s.container} edges={['top','left','right']}>
@@ -173,14 +225,16 @@ export default function ExercisesScreen() {
         <ActivityIndicator color={C.primary} size="large" style={{ marginTop: 60 }} />
       ) : (
         <ScrollView contentContainerStyle={s.scroll}>
-          {Object.entries(grouped).map(([cat, items]) => {
-            const cc = CAT_COLOR[cat] ?? C.muted;
+          {sortedMuscles.map(muscle => {
+            const items = grouped[muscle];
+            if (!items?.length) return null;
+            const cc = MUSCLE_COLOR[muscle] ?? C.muted;
             return (
-              <View key={cat} style={s.catSection}>
+              <View key={muscle} style={s.catSection}>
                 {/* Section header */}
                 <View style={[s.catSectionHeader, { borderLeftColor: cc }]}>
-                  <Text style={s.catSectionIcon}>{CAT_ICON[cat]}</Text>
-                  <Text style={[s.catSectionLabel, { color: cc }]}>{cat}</Text>
+                  <Text style={s.catSectionIcon}>{MUSCLE_EMOJI[muscle] ?? '•'}</Text>
+                  <Text style={[s.catSectionLabel, { color: cc }]}>{muscle.toUpperCase()}</Text>
                   <Text style={s.catSectionCount}>{items.length}</Text>
                 </View>
 
@@ -228,7 +282,7 @@ export default function ExercisesScreen() {
             );
           })}
 
-          {Object.keys(grouped).length === 0 && (
+          {sortedMuscles.length === 0 && (
             <View style={s.empty}>
               <Ionicons name="barbell-outline" size={52} color="#222" />
               <Text style={s.emptyTxt}>No hay ejercicios en esta categoría</Text>
