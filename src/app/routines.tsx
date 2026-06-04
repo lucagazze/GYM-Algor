@@ -4,6 +4,8 @@ import {
   Modal, Alert, ActivityIndicator, FlatList, Platform, Vibration,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
@@ -196,10 +198,13 @@ export default function RoutinesScreen() {
     if (editingFolder) {
       await folderService.rename(editingFolder.id, folderName.trim());
     } else {
-      const f = await folderService.create(folderName.trim());
+      // newRoutineFolderId used as parentId when creating subcarpeta from folder-add button
+      const parentId = newRoutineFolderId ?? null;
+      const f = await folderService.create(folderName.trim(), parentId);
       if (f) setExpandedFolders(prev => new Set([...prev, f.id]));
     }
     setFolderModalOpen(false);
+    setNewRoutineFolderId(null);
     load();
   };
 
@@ -431,15 +436,83 @@ export default function RoutinesScreen() {
 
   const cats = muscleChips(exercises);
 
-  const RoutineCard = ({ r }: { r: Routine }) => {
+  // ── Flat list items for DraggableFlatList ──────────────────
+  type FlatItem =
+    | { type: 'folder-header'; folder: Folder; key: string }
+    | { type: 'subfolder-header'; folder: Folder; parentId: string; key: string }
+    | { type: 'routine'; routine: Routine; key: string }
+    | { type: 'folder-add'; folderId: string; key: string }
+    | { type: 'no-folder-label'; key: string };
+
+  const buildFlatList = (): FlatItem[] => {
+    const items: FlatItem[] = [];
+    const rootFolders = folders.filter(f => !f.parentId);
+    for (const folder of rootFolders) {
+      items.push({ type: 'folder-header', folder, key: `fh-${folder.id}` });
+      if (expandedFolders.has(folder.id)) {
+        // Subfolders
+        for (const sub of folders.filter(f => f.parentId === folder.id)) {
+          items.push({ type: 'subfolder-header', folder: sub, parentId: folder.id, key: `sfh-${sub.id}` });
+          if (expandedFolders.has(sub.id)) {
+            for (const r of routines.filter(r => r.folderId === sub.id)) {
+              items.push({ type: 'routine', routine: r, key: `r-${r.id}` });
+            }
+          }
+        }
+        // Routines in this folder
+        for (const r of routines.filter(r => r.folderId === folder.id)) {
+          items.push({ type: 'routine', routine: r, key: `r-${r.id}` });
+        }
+        items.push({ type: 'folder-add', folderId: folder.id, key: `fa-${folder.id}` });
+      }
+    }
+    const orphans = routines.filter(r => !r.folderId);
+    if (orphans.length > 0) {
+      if (folders.length > 0) items.push({ type: 'no-folder-label', key: 'nfl' });
+      for (const r of orphans) items.push({ type: 'routine', routine: r, key: `r-${r.id}` });
+    }
+    return items;
+  };
+
+  const flatItems = buildFlatList();
+
+  const handleDragEnd = async ({ data }: { data: FlatItem[] }) => {
+    // Compute new order for folders and routines
+    let fIdx = 0, rIdx = 0;
+    const folderUpdates: { id: string; order: number }[] = [];
+    const routineUpdates: { id: string; order: number }[] = [];
+    for (const item of data) {
+      if (item.type === 'folder-header') folderUpdates.push({ id: item.folder.id, order: fIdx++ });
+      if (item.type === 'routine') routineUpdates.push({ id: item.routine.id, order: rIdx++ });
+    }
+    const newFolders = folders.map(f => {
+      const u = folderUpdates.find(x => x.id === f.id);
+      return u ? { ...f, sortOrder: u.order } : f;
+    }).sort((a, b) => a.sortOrder - b.sortOrder);
+    const newRoutines = routines.map(r => {
+      const u = routineUpdates.find(x => x.id === r.id);
+      return u ? { ...r, sortOrder: u.order } : r;
+    }).sort((a, b) => a.sortOrder - b.sortOrder);
+    setFolders(newFolders);
+    setRoutines(newRoutines);
+    await folderService.saveOrder(newFolders);
+    await routineService.saveOrder(newRoutines);
+  };
+
+  const RoutineCard = ({ r, drag, isActive }: { r: Routine; drag?: () => void; isActive?: boolean }) => {
     const catCounts: Record<string, number> = {};
     r.exerciseIds.forEach(id => {
       const cat = getEx(id)?.category ?? 'OTROS';
       catCounts[cat] = (catCounts[cat] || 0) + 1;
     });
     return (
-      <View style={s.routineCard}>
+      <View style={[s.routineCard, isActive && { opacity: 0.9, transform: [{ scale: 1.02 }] }]}>
         <View style={s.cardHeader}>
+          {drag && (
+            <TouchableOpacity onLongPress={drag} style={s.dragHandle} hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}>
+              <Ionicons name="reorder-three-outline" size={18} color={C.muted} />
+            </TouchableOpacity>
+          )}
           <View style={{ flex: 1 }}>
             <Text style={s.routineName} numberOfLines={1}>{r.name}</Text>
             <View style={s.catPills}>
@@ -491,6 +564,7 @@ export default function RoutinesScreen() {
   };
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <SafeAreaView style={s.container} edges={['top','left','right']}>
       {/* Header */}
       <View style={s.header}>
@@ -507,77 +581,88 @@ export default function RoutinesScreen() {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={s.scroll}>
-        {loading ? (
-          <ActivityIndicator color={C.primary} style={{ marginTop: 60 }} />
-        ) : routines.length === 0 && folders.length === 0 ? (
-          <View style={s.empty}>
-            <Ionicons name="list-outline" size={44} color="#222" />
-            <Text style={s.emptyTitle}>Sin rutinas</Text>
-            <Text style={s.emptySub}>Creá tu primera rutina y entrenala en orden</Text>
-          </View>
-        ) : (
-          <>
-            {/* ── Folders ── */}
-            {folders.map(folder => {
-              const folderRoutines = routines.filter(r => r.folderId === folder.id);
-              const isExpanded = expandedFolders.has(folder.id);
-              return (
-                <View key={folder.id} style={s.folderCard}>
-                  {/* Folder header */}
-                  <TouchableOpacity style={s.folderHeader} onPress={() => toggleFolder(folder.id)} activeOpacity={0.8}>
-                    <Ionicons name={isExpanded ? 'folder-open-outline' : 'folder-outline'} size={16} color={C.primary} />
-                    <View style={{ flex: 1, marginLeft: 8 }}>
-                      <Text style={s.folderName}>{folder.name}</Text>
-                      {!isExpanded && folderRoutines.length > 0 && (
-                        <Text style={s.folderSummary} numberOfLines={1}>
-                          {folderRoutines.map(r => r.name).join(' · ')}
-                        </Text>
-                      )}
-                    </View>
-                    <Text style={s.folderCount}>{folderRoutines.length} rutina{folderRoutines.length !== 1 ? 's' : ''}</Text>
-                    <TouchableOpacity onPress={() => openFolderModal(folder)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                      <Ionicons name="pencil-outline" size={13} color={C.muted} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => deleteFolder(folder)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                      <Ionicons name="trash-outline" size={13} color={C.muted} />
-                    </TouchableOpacity>
-                    <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color={C.muted} style={{ marginLeft: 4 }} />
-                  </TouchableOpacity>
+      {loading ? (
+        <ActivityIndicator color={C.primary} style={{ marginTop: 60 }} />
+      ) : routines.length === 0 && folders.length === 0 ? (
+        <View style={s.empty}>
+          <Ionicons name="list-outline" size={44} color="#222" />
+          <Text style={s.emptyTitle}>Sin rutinas</Text>
+          <Text style={s.emptySub}>Creá tu primera rutina y entrenala en orden</Text>
+        </View>
+      ) : (
+        <DraggableFlatList
+          data={flatItems}
+          keyExtractor={item => item.key}
+          onDragEnd={handleDragEnd}
+          contentContainerStyle={s.scroll}
+          activationDistance={15}
+          renderItem={({ item, drag, isActive }: RenderItemParams<FlatItem>) => {
+            if (item.type === 'no-folder-label') {
+              return <Text style={s.noFolderLabel}>SIN CARPETA</Text>;
+            }
 
-                  {/* Routines inside folder */}
-                  {isExpanded && (
-                    <View style={s.folderBody}>
-                      {folderRoutines.length === 0 ? (
-                        <TouchableOpacity style={s.folderEmpty} onPress={() => openCreate(folder.id)}>
-                          <Ionicons name="add-circle-outline" size={18} color={C.muted} />
-                          <Text style={s.folderEmptyTxt}>Agregar rutina a esta carpeta</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        folderRoutines.map(r => <RoutineCard key={r.id} r={r} />)
-                      )}
-                      <TouchableOpacity style={s.addToFolderBtn} onPress={() => openCreate(folder.id)} activeOpacity={0.7}>
-                        <Ionicons name="add" size={13} color={C.muted} />
-                        <Text style={s.addToFolderTxt}>Nueva rutina aquí</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
+            if (item.type === 'folder-add') {
+              return (
+                <View style={s.folderAddRow}>
+                  <TouchableOpacity style={s.addToFolderBtn} onPress={() => openCreate(item.folderId)} activeOpacity={0.7}>
+                    <Ionicons name="add" size={13} color={C.muted} />
+                    <Text style={s.addToFolderTxt}>Nueva rutina aquí</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.addSubfolderBtn} onPress={() => { setEditingFolder(null); setFolderName(''); setNewRoutineFolderId(item.folderId); setFolderModalOpen(true); }} activeOpacity={0.7}>
+                    <Ionicons name="folder-outline" size={13} color={C.muted} />
+                    <Text style={s.addToFolderTxt}>Nueva subcarpeta</Text>
+                  </TouchableOpacity>
                 </View>
               );
-            })}
+            }
 
-            {/* ── Routines without folder ── */}
-            {routines.filter(r => !r.folderId).length > 0 && (
-              <View>
-                {folders.length > 0 && (
-                  <Text style={s.noFolderLabel}>SIN CARPETA</Text>
-                )}
-                {routines.filter(r => !r.folderId).map(r => <RoutineCard key={r.id} r={r} />)}
-              </View>
-            )}
-          </>
-        )}
-      </ScrollView>
+            if (item.type === 'folder-header' || item.type === 'subfolder-header') {
+              const folder = item.folder;
+              const isExpanded = expandedFolders.has(folder.id);
+              const folderRoutines = routines.filter(r => r.folderId === folder.id);
+              const subfolders = folders.filter(f => f.parentId === folder.id);
+              const totalItems = folderRoutines.length + subfolders.length;
+              const isSub = item.type === 'subfolder-header';
+              return (
+                <ScaleDecorator>
+                  <View style={[s.folderCard, isSub && s.subfolderCard, isActive && { opacity: 0.9 }]}>
+                    <TouchableOpacity style={s.folderHeader} onPress={() => toggleFolder(folder.id)} activeOpacity={0.8}>
+                      <TouchableOpacity onLongPress={drag} hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}>
+                        <Ionicons name="reorder-three-outline" size={16} color={C.muted} />
+                      </TouchableOpacity>
+                      <Ionicons name={isExpanded ? 'folder-open-outline' : 'folder-outline'} size={15} color={isSub ? C.mutedLight : C.primary} style={{ marginLeft: 6 }} />
+                      <View style={{ flex: 1, marginLeft: 7 }}>
+                        <Text style={[s.folderName, isSub && { fontSize: 13 }]}>{folder.name}</Text>
+                        {!isExpanded && totalItems > 0 && (
+                          <Text style={s.folderSummary} numberOfLines={1}>
+                            {[...subfolders.map(f => `📁 ${f.name}`), ...folderRoutines.map(r => r.name)].join(' · ')}
+                          </Text>
+                        )}
+                      </View>
+                      <Text style={s.folderCount}>{totalItems} elemento{totalItems !== 1 ? 's' : ''}</Text>
+                      <TouchableOpacity onPress={() => openFolderModal(folder)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                        <Ionicons name="pencil-outline" size={12} color={C.muted} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => deleteFolder(folder)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                        <Ionicons name="trash-outline" size={12} color={C.muted} />
+                      </TouchableOpacity>
+                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={13} color={C.muted} style={{ marginLeft: 4 }} />
+                    </TouchableOpacity>
+                  </View>
+                </ScaleDecorator>
+              );
+            }
+
+            // routine
+            const r = item.routine;
+            return (
+              <ScaleDecorator>
+                <RoutineCard r={r} drag={drag} isActive={isActive} />
+              </ScaleDecorator>
+            );
+          }}
+        />
+      )}
 
       {/* ── Create Routine Modal ───────────────────────────── */}
       <Modal visible={createOpen} animationType="slide" transparent>
@@ -1006,12 +1091,13 @@ export default function RoutinesScreen() {
         </SafeAreaView>
       </Modal>
 
-      <PlateCalculator 
-        visible={calcOpen} 
-        onClose={() => setCalcOpen(false)} 
-        weight={addedW} 
+      <PlateCalculator
+        visible={calcOpen}
+        onClose={() => setCalcOpen(false)}
+        weight={addedW}
       />
     </SafeAreaView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -1033,9 +1119,13 @@ const s = StyleSheet.create({
   folderBody: { borderTopWidth: 1, borderTopColor: C.border, padding: 10, gap: 8 },
   folderEmpty: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderWidth: 1, borderColor: C.borderLight, borderStyle: 'dashed', borderRadius: 10 },
   folderEmptyTxt: { fontSize: 13, color: C.muted, fontWeight: '600' },
-  addToFolderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderTopWidth: 1, borderTopColor: C.border, marginTop: 2 },
+  addToFolderBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8 },
   addToFolderTxt: { fontSize: 11, color: C.muted, fontWeight: '700' },
-  noFolderLabel: { fontSize: 9, fontWeight: '800', color: C.muted, letterSpacing: 1.5, marginBottom: 6, marginTop: 4 },
+  folderAddRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border, backgroundColor: C.surface },
+  addSubfolderBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderLeftWidth: 1, borderLeftColor: C.border },
+  subfolderCard: { marginLeft: 16, borderColor: C.borderLight },
+  noFolderLabel: { fontSize: 9, fontWeight: '800', color: C.muted, letterSpacing: 1.5, marginBottom: 4, marginTop: 6, paddingHorizontal: 4 },
+  dragHandle: { padding: 4, marginRight: 2 },
 
   // Move modal
   folderMoveItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12 },
