@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { C, CAT_COLOR } from '../constants/theme';
+import { MUSCLE_COLOR, getMuscle, muscleChips } from '../constants/muscles';
 import { routineService, Routine, ActiveSession } from '../utils/routineService';
 import { workoutService, Exercise, WorkoutLog, RM } from '../utils/workoutService';
 import PlateCalculator from '../components/PlateCalculator';
@@ -331,13 +332,13 @@ export default function RoutinesScreen() {
 
   const filteredExForPicker = exercises
     .filter(e => {
-      const matchCat = exCatFilter === 'TODOS' || e.category === exCatFilter;
+      const matchCat = exCatFilter === 'TODOS' || getMuscle(e) === exCatFilter;
       const matchQ = e.name.toLowerCase().includes(exSearch.toLowerCase());
       return matchCat && matchQ;
     })
     .sort((a, b) => (b.is_favorite ? 1 : 0) - (a.is_favorite ? 1 : 0));
 
-  const cats = ['TODOS', 'EMPUJE', 'TRACCION', 'PIERNA', 'SKILL'];
+  const cats = muscleChips(exercises);
 
   return (
     <SafeAreaView style={s.container} edges={['top','left','right']}>
@@ -513,15 +514,19 @@ export default function RoutinesScreen() {
                 style={{ flexGrow: 0 }}
                 contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 4 }}
               >
-              {cats.map(c => (
-                <TouchableOpacity
-                  key={c}
-                  style={[s.catChip, exCatFilter === c && s.catChipActive]}
-                  onPress={() => setExCatFilter(c)}
-                >
-                  <Text style={[s.catChipTxt, exCatFilter === c && { color: C.primaryDim }]}>{c}</Text>
-                </TouchableOpacity>
-              ))}
+              {cats.map(c => {
+                const active = exCatFilter === c;
+                const col = c === 'TODOS' ? C.primary : (MUSCLE_COLOR[c] ?? C.primary);
+                return (
+                  <TouchableOpacity
+                    key={c}
+                    style={[s.catChip, active && { borderColor: col, backgroundColor: col + '22' }]}
+                    onPress={() => setExCatFilter(c)}
+                  >
+                    <Text style={[s.catChipTxt, active && { color: col }]}>{c}</Text>
+                  </TouchableOpacity>
+                );
+              })}
               </ScrollView>
             </View>
             <FlatList

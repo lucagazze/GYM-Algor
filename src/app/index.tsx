@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { workoutService, RM, Exercise, WorkoutLog } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
+import { MUSCLE_COLOR, getMuscle, muscleChips } from '../constants/muscles';
 import PlateCalculator from '../components/PlateCalculator';
 import { supabase } from '../utils/supabase';
 
@@ -277,10 +278,10 @@ export default function LogScreen() {
     Vibration.vibrate(30);
   };
 
-  const cats = ['TODOS', 'EMPUJE', 'TRACCION', 'PIERNA', 'SKILL'];
+  const cats = muscleChips(exercises);
   const filteredExercises = exercises
     .filter(ex => {
-      const matchCat = filterCat === 'TODOS' || ex.category === filterCat;
+      const matchCat = filterCat === 'TODOS' || getMuscle(ex) === filterCat;
       return matchCat && ex.name.toLowerCase().includes(searchQ.toLowerCase());
     })
     .sort((a, b) => (b.is_favorite ? 1 : 0) - (a.is_favorite ? 1 : 0));
@@ -550,13 +551,17 @@ export default function LogScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false}
                 style={{ flexGrow: 0 }}
                 contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingVertical: 4 }}>
-              {cats.map(c => (
-                <TouchableOpacity key={c}
-                  style={[s.catChip, filterCat === c && s.catChipActive]}
-                  onPress={() => setFilterCat(c)}>
-                  <Text style={[s.catChipTxt, filterCat === c && { color: C.primary }]}>{c}</Text>
-                </TouchableOpacity>
-              ))}
+              {cats.map(c => {
+                const active = filterCat === c;
+                const col = c === 'TODOS' ? C.primary : (MUSCLE_COLOR[c] ?? C.primary);
+                return (
+                  <TouchableOpacity key={c}
+                    style={[s.catChip, active && { borderColor: col, backgroundColor: col + '22' }]}
+                    onPress={() => setFilterCat(c)}>
+                    <Text style={[s.catChipTxt, active && { color: col }]}>{c}</Text>
+                  </TouchableOpacity>
+                );
+              })}
               </ScrollView>
             </View>
             <FlatList

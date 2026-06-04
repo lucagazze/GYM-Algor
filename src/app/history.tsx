@@ -8,9 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { workoutService, WorkoutLog, Exercise } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
+import { MUSCLE_COLOR, getMuscle, muscleChips } from '../constants/muscles';
 
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-const CATS = ['TODOS', 'EMPUJE', 'TRACCION', 'PIERNA', 'SKILL'] as const;
 
 function fmtFullDate(d: string) {
   const p = d.split('-');
@@ -77,10 +77,12 @@ export default function HistoryScreen() {
     });
   };
 
+  const cats = muscleChips(exercises);
+
   const filtered = logs.filter(l => {
     const ex = l.exercise ?? getEx(l.exercise_id);
     const matchQ = !searchQ || ex?.name.toLowerCase().includes(searchQ.toLowerCase());
-    const matchCat = filterCat === 'TODOS' || ex?.category === filterCat;
+    const matchCat = filterCat === 'TODOS' || (ex ? getMuscle(ex) === filterCat : false);
     return matchQ && matchCat;
   });
 
@@ -134,16 +136,19 @@ export default function HistoryScreen() {
         style={{ flexGrow: 0 }}
         contentContainerStyle={s.catBar}
       >
-        {CATS.map(c => (
-          <TouchableOpacity
-            key={c}
-            style={[s.catChip, filterCat === c && s.catChipActive, filterCat === c && c !== 'TODOS' && { borderColor: CAT_COLOR[c] ?? C.primary, backgroundColor: (CAT_COLOR[c] ?? C.primary) + '22' }]}
-            onPress={() => setFilterCat(c)}
-          >
-            {c !== 'TODOS' && <View style={[s.catDot, { backgroundColor: CAT_COLOR[c] ?? C.muted }]} />}
-            <Text style={[s.catChipTxt, filterCat === c && { color: c === 'TODOS' ? C.primary : (CAT_COLOR[c] ?? C.primary) }]}>{c}</Text>
-          </TouchableOpacity>
-        ))}
+        {cats.map(c => {
+          const active = filterCat === c;
+          const col = c === 'TODOS' ? C.primary : (MUSCLE_COLOR[c] ?? C.primary);
+          return (
+            <TouchableOpacity
+              key={c}
+              style={[s.catChip, active && { borderColor: col, backgroundColor: col + '22' }]}
+              onPress={() => setFilterCat(c)}
+            >
+              <Text style={[s.catChipTxt, active && { color: col }]}>{c}</Text>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
 
       {loading ? (
