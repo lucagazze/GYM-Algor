@@ -105,6 +105,13 @@ export default function RoutinesScreen() {
   const [exSearch, setExSearch] = useState('');
   const [exCatFilter, setExCatFilter] = useState('TODOS');
 
+  // Quick-create exercise from within picker
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [quickName, setQuickName] = useState('');
+  const [quickMuscle, setQuickMuscle] = useState('');
+  const [quickTracking, setQuickTracking] = useState<'weight'|'time'|'reps'>('weight');
+  const [quickSaving, setQuickSaving] = useState(false);
+
   // Session state
   const [session, setSession] = useState<ActiveSession | null>(null);
   const [sessionOpen, setSessionOpen] = useState(false);
@@ -208,6 +215,34 @@ export default function RoutinesScreen() {
     setSelectedExIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     );
+  };
+
+  const MUSCLE_TO_CAT: Record<string, string> = {
+    'Pecho': 'EMPUJE', 'Hombros': 'EMPUJE', 'Tríceps': 'EMPUJE',
+    'Bíceps': 'TRACCION', 'Espalda': 'TRACCION', 'Trapecios': 'TRACCION',
+    'Cuádriceps': 'PIERNA', 'Isquiotibiales': 'PIERNA', 'Glúteos': 'PIERNA',
+    'Gemelos': 'PIERNA', 'Sóleo': 'PIERNA',
+    'Core': 'SKILL', 'Abdominales': 'SKILL', 'Otros': 'EMPUJE',
+  };
+
+  const saveQuickExercise = async () => {
+    if (!quickName.trim()) { Alert.alert('Falta nombre'); return; }
+    if (!quickMuscle) { Alert.alert('Elegí un grupo muscular'); return; }
+    setQuickSaving(true);
+    const result = await workoutService.createExercise({
+      name: quickName.trim(),
+      category: (MUSCLE_TO_CAT[quickMuscle] ?? 'EMPUJE') as any,
+      tracking_type: quickTracking,
+      muscle_group: quickMuscle,
+      is_custom: true,
+    });
+    setQuickSaving(false);
+    if (result.error) { Alert.alert('Error', result.error); return; }
+    const newList = await workoutService.getExercises();
+    setExercises(newList);
+    if (result.data) toggleExInRoutine(result.data.id);
+    setQuickOpen(false);
+    setQuickName(''); setQuickMuscle(''); setQuickTracking('weight');
   };
 
   const moveEx = (idx: number, dir: -1 | 1) => {
@@ -494,9 +529,18 @@ export default function RoutinesScreen() {
             <View style={s.sheetHandle} />
             <View style={s.sheetHeader}>
               <Text style={s.sheetTitle}>Agregar ejercicio</Text>
-              <TouchableOpacity onPress={() => setExPickerOpen(false)} style={s.closeBtn}>
-                <Ionicons name="close" size={20} color={C.text} />
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TouchableOpacity
+                  onPress={() => setQuickOpen(true)}
+                  style={s.newExBtn}
+                >
+                  <Ionicons name="add" size={15} color="#fff" />
+                  <Text style={s.newExBtnTxt}>NUEVO</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setExPickerOpen(false)} style={s.closeBtn}>
+                  <Ionicons name="close" size={20} color={C.text} />
+                </TouchableOpacity>
+              </View>
             </View>
             <View style={s.searchBar}>
               <Ionicons name="search" size={16} color={C.muted} style={{ marginRight: 8 }} />
@@ -552,6 +596,72 @@ export default function RoutinesScreen() {
                 );
               }}
             />
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* ── Quick Create Exercise ─────────────────────────── */}
+      <Modal visible={quickOpen} animationType="slide" transparent>
+        <View style={s.overlay}>
+          <SafeAreaView style={s.sheet}>
+            <View style={s.sheetHandle} />
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>Nuevo ejercicio</Text>
+              <TouchableOpacity onPress={() => setQuickOpen(false)} style={s.closeBtn}>
+                <Ionicons name="close" size={20} color={C.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={s.sheetScroll} keyboardShouldPersistTaps="handled">
+              <Text style={s.fieldLabel}>NOMBRE</Text>
+              <TextInput
+                style={s.field}
+                value={quickName}
+                onChangeText={setQuickName}
+                placeholder="Ej: Press Plano"
+                placeholderTextColor={C.muted}
+                autoFocus
+              />
+
+              <Text style={[s.fieldLabel, { marginTop: 16 }]}>GRUPO MUSCULAR</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                {MUSCLE_ORDER.map(m => {
+                  const active = quickMuscle === m;
+                  const col = MUSCLE_COLOR[m] ?? C.muted;
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      style={[{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 20, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg },
+                        active && { borderColor: col, backgroundColor: col + '28' }]}
+                      onPress={() => setQuickMuscle(m)}
+                    >
+                      <Text style={[{ fontSize: 12, color: C.mutedLight, fontWeight: '700' }, active && { color: col }]}>{m}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={[s.fieldLabel, { marginTop: 16 }]}>TIPO</Text>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {([['weight','⚖️ Peso+Reps'],['time','⏱ Segundos'],['reps','🔢 Reps']] as const).map(([k, label]) => (
+                  <TouchableOpacity
+                    key={k}
+                    style={[{ flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg },
+                      quickTracking === k && { borderColor: C.primary, backgroundColor: C.primaryDim }]}
+                    onPress={() => setQuickTracking(k)}
+                  >
+                    <Text style={[{ fontSize: 11, color: C.mutedLight, fontWeight: '700' }, quickTracking === k && { color: C.primary }]}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity onPress={saveQuickExercise} disabled={quickSaving} activeOpacity={0.8} style={{ marginTop: 20 }}>
+                <LinearGradient colors={[C.primary, '#D91646']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.saveBtn}>
+                  {quickSaving
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={s.saveBtnTxt}>CREAR Y AGREGAR</Text>}
+                </LinearGradient>
+              </TouchableOpacity>
+            </ScrollView>
           </SafeAreaView>
         </View>
       </Modal>
@@ -784,6 +894,8 @@ const s = StyleSheet.create({
   selectedExName: { flex: 1, fontSize: 14, fontWeight: '800', color: C.text },
   addExBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: C.borderLight, borderStyle: 'dashed', borderRadius: 12, paddingVertical: 14, marginTop: 10, backgroundColor: C.surfaceHigh },
   addExBtnTxt: { fontSize: 13, color: C.mutedLight, fontWeight: '700' },
+  newExBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.primary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  newExBtnTxt: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
   saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 14, marginTop: 20 },
   saveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 14, letterSpacing: 1, textTransform: 'uppercase' },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, margin: 12, paddingHorizontal: 14, height: 40, borderRadius: 10, borderWidth: 1, borderColor: C.border },
