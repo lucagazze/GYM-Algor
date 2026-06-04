@@ -10,15 +10,21 @@ import { workoutService, WorkoutLog, Exercise } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
 
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const CATS = ['TODOS', 'EMPUJE', 'TRACCION', 'PIERNA', 'SKILL'] as const;
 
 function fmtFullDate(d: string) {
   const p = d.split('-');
   if (p.length !== 3) return d;
   const today = new Date().toISOString().split('T')[0];
-  const yest = new Date(); yest.setDate(yest.getDate()-1);
+  const yest = new Date(); yest.setDate(yest.getDate() - 1);
   if (d === today) return 'Hoy';
   if (d === yest.toISOString().split('T')[0]) return 'Ayer';
-  return `${parseInt(p[2])} ${MONTHS[parseInt(p[1])-1]} ${p[0]}`;
+  const dow = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][new Date(d + 'T12:00:00').getDay()];
+  return `${dow} ${parseInt(p[2])} ${MONTHS[parseInt(p[1]) - 1]}`;
+}
+
+function fmtVol(n: number) {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}t` : `${n.toFixed(0)}kg`;
 }
 
 export default function HistoryScreen() {
@@ -26,23 +32,22 @@ export default function HistoryScreen() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQ, setSearchQ] = useState('');
+  const [filterCat, setFilterCat] = useState<string>('TODOS');
   const [activeDays, setActiveDays] = useState<Set<string>>(new Set());
-  const [weeklyVolume, setWeeklyVolume] = useState<{category: string, sets: number}[]>([]);
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
   const load = async () => {
     setLoading(true);
-    const [allLogs, exList, days, vol] = await Promise.all([
-      workoutService.getAllRecentLogs(200),
+    const [allLogs, exList, days] = await Promise.all([
+      workoutService.getAllRecentLogs(300),
       workoutService.getExercises(),
       workoutService.getActiveDays(),
-      workoutService.getWeeklyVolumeByCategory(),
     ]);
     setLogs(allLogs);
     setExercises(exList);
     setActiveDays(new Set(days));
-    setWeeklyVolume(vol);
     setLoading(false);
   };
 
@@ -63,12 +68,21 @@ export default function HistoryScreen() {
     ]);
   };
 
-  const filtered = searchQ
-    ? logs.filter(l => {
-        const ex = l.exercise ?? getEx(l.exercise_id);
-        return ex?.name.toLowerCase().includes(searchQ.toLowerCase());
-      })
-    : logs;
+  const toggleDay = (date: string) => {
+    setExpandedDays(prev => {
+      const next = new Set(prev);
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
+      return next;
+    });
+  };
+
+  const filtered = logs.filter(l => {
+    const ex = l.exercise ?? getEx(l.exercise_id);
+    const matchQ = !searchQ || ex?.name.toLowerCase().includes(searchQ.toLowerCase());
+    const matchCat = filterCat === 'TODOS' || ex?.category === filterCat;
+    return matchQ && matchCat;
+  });
 
   const byDate: Record<string, WorkoutLog[]> = {};
   for (const l of filtered) {
@@ -77,15 +91,28 @@ export default function HistoryScreen() {
   }
   const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
 
+  const totalSessions = new Set(logs.map(l => l.date)).size;
+  const totalPRs = logs.filter(l => l.is_pr).length;
+
   return (
-    <SafeAreaView style={s.container} edges={['top','left','right']}>
+    <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
       <View style={s.header}>
         <Text style={s.logo}>ALGO<Text style={{ color: C.primary }}>R</Text>LIFT</Text>
-        <Text style={s.headerSub}>{logs.length} registros</Text>
+        <View style={{ flexDirection: 'row', gap: 14 }}>
+          <View style={s.statPill}>
+            <Text style={s.statPillVal}>{totalSessions}</Text>
+            <Text style={s.statPillLbl}>sesiones</Text>
+          </View>
+          <View style={s.statPill}>
+            <Text style={[s.statPillVal, { color: C.primary }]}>{totalPRs}</Text>
+            <Text style={s.statPillLbl}>PRs</Text>
+          </View>
+        </View>
       </View>
 
+      {/* Search */}
       <View style={s.searchWrap}>
-        <Ionicons name="search" size={16} color={C.muted} style={{ marginRight: 8 }} />
+        <Ionicons name="search" size={15} color={C.muted} style={{ marginRight: 8 }} />
         <TextInput
           style={s.searchInput}
           placeholder="Buscar ejercicio..."
@@ -95,120 +122,148 @@ export default function HistoryScreen() {
         />
         {searchQ.length > 0 && (
           <TouchableOpacity onPress={() => setSearchQ('')}>
-            <Ionicons name="close-circle" size={16} color={C.muted} />
+            <Ionicons name="close-circle" size={15} color={C.muted} />
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Category filter */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ flexGrow: 0 }}
+        contentContainerStyle={s.catBar}
+      >
+        {CATS.map(c => (
+          <TouchableOpacity
+            key={c}
+            style={[s.catChip, filterCat === c && s.catChipActive, filterCat === c && c !== 'TODOS' && { borderColor: CAT_COLOR[c] ?? C.primary, backgroundColor: (CAT_COLOR[c] ?? C.primary) + '22' }]}
+            onPress={() => setFilterCat(c)}
+          >
+            {c !== 'TODOS' && <View style={[s.catDot, { backgroundColor: CAT_COLOR[c] ?? C.muted }]} />}
+            <Text style={[s.catChipTxt, filterCat === c && { color: c === 'TODOS' ? C.primary : (CAT_COLOR[c] ?? C.primary) }]}>{c}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       {loading ? (
         <ActivityIndicator color={C.primary} size="large" style={{ marginTop: 60 }} />
       ) : (
         <ScrollView contentContainerStyle={s.scroll}>
-          
-          <View style={s.heatmapCard}>
-            <Text style={s.heatmapTitle}>Consistencia (Últimos 35 días)</Text>
-            <View style={s.heatmapGrid}>
-              {Array.from({length: 35}).map((_, i) => {
+
+          {/* Heatmap */}
+          <View style={s.heatCard}>
+            <Text style={s.sectionLabel}>CONSISTENCIA — 35 DÍAS</Text>
+            <View style={s.heatGrid}>
+              {Array.from({ length: 35 }).map((_, i) => {
                 const d = new Date();
                 d.setDate(d.getDate() - (34 - i));
                 const dStr = d.toISOString().split('T')[0];
                 return (
-                  <View key={dStr} style={[s.heatSquare, activeDays.has(dStr) ? { backgroundColor: C.primary } : { backgroundColor: C.surfaceHigh }]} />
+                  <View
+                    key={dStr}
+                    style={[s.heatSquare, activeDays.has(dStr) && { backgroundColor: C.primary, opacity: 1 }]}
+                  />
                 );
               })}
             </View>
           </View>
 
-          {weeklyVolume.length > 0 && (
-            <View style={s.volCard}>
-              <Text style={s.volTitle}>Volumen Semanal (Últimos 7 días)</Text>
-              <View style={s.volBars}>
-                {weeklyVolume.map(v => (
-                  <View key={v.category} style={s.volBarRow}>
-                    <Text style={s.volLabel}>{v.category}</Text>
-                    <View style={s.volBarBg}>
-                      {/* max width logic, assuming max 30 sets is 100% */}
-                      <View style={[s.volBarFill, { width: `${Math.min(100, (v.sets / 30) * 100)}%` as any, backgroundColor: CAT_COLOR[v.category] ?? C.primary }]} />
-                    </View>
-                    <Text style={s.volVal}>{v.sets} sets</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-          <Text style={s.pageTitle}>Historial</Text>
-
           {dates.length === 0 ? (
             <View style={s.empty}>
-              <Ionicons name="calendar-outline" size={52} color="#222" />
+              <Ionicons name="calendar-outline" size={44} color="#222" />
               <Text style={s.emptyTxt}>Sin registros todavía</Text>
             </View>
           ) : (
             dates.map(date => {
               const dayLogs = byDate[date];
+              const isExpanded = expandedDays.has(date);
+              const hasPR = dayLogs.some(l => l.is_pr);
+              const totalVol = dayLogs.reduce((s, l) => s + (l.body_weight + l.added_weight) * l.reps, 0);
+
+              // Group by exercise
               const byEx: Record<number, WorkoutLog[]> = {};
               for (const l of dayLogs) {
                 if (!byEx[l.exercise_id]) byEx[l.exercise_id] = [];
                 byEx[l.exercise_id].push(l);
               }
-              const hasPR = dayLogs.some(l => l.is_pr);
+              const exIds = Object.keys(byEx).map(Number);
 
               return (
                 <View key={date} style={s.dayCard}>
-                  <View style={s.dayHeader}>
-                    <Text style={s.dayTitle}>{fmtFullDate(date)}</Text>
-                    <View style={s.dayMeta}>
-                      {hasPR && <View style={s.prDot}><Text style={s.prDotTxt}>PR</Text></View>}
-                      <Text style={s.daySetCount}>{dayLogs.length} serie{dayLogs.length !== 1 ? 's' : ''}</Text>
-                    </View>
-                  </View>
-
-                  {Object.entries(byEx).map(([exIdStr, exLogs]) => {
-                    const exId = parseInt(exIdStr);
-                    const ex = exLogs[0]?.exercise ?? getEx(exId);
-                    const cc = CAT_COLOR[ex?.category ?? ''] ?? C.muted;
-                    const best1rm = exLogs.reduce((b, l) => (l.estimated_1rm||0) > b ? (l.estimated_1rm||0) : b, 0);
-                    const bestDur = exLogs.reduce((b, l) => (l.duration_sec||0) > b ? (l.duration_sec||0) : b, 0);
-                    const bestReps = exLogs.reduce((b, l) => (l.reps||0) > b ? (l.reps||0) : b, 0);
-                    let metaStr = '';
-                    if (ex?.tracking_type === 'weight' && best1rm > 0)
-                      metaStr = `${exLogs.length} series · Best 1RM: ${best1rm.toFixed(1)} kg`;
-                    else if (ex?.tracking_type === 'time')
-                      metaStr = `${exLogs.length} series · Max: ${bestDur}s`;
-                    else
-                      metaStr = `${exLogs.length} series · Max: ${bestReps} reps`;
-
-                    return (
-                      <View key={exId} style={s.exGroupRow}>
-                        <View style={[s.exGroupBar, { backgroundColor: cc }]} />
-                        <View style={{ flex: 1, paddingLeft: 12 }}>
-                          <Text style={s.exGroupName}>{ex?.name ?? `Ejercicio ${exId}`}</Text>
-                          <Text style={s.exGroupMeta}>{metaStr}</Text>
-                          <View style={s.setsList}>
-                            {exLogs.map((l, i) => {
-                              let valStr = ex?.tracking_type === 'weight'
-                                ? `+${l.added_weight}kg × ${l.reps}r`
-                                : ex?.tracking_type === 'time' ? `${l.duration_sec}s`
-                                : `${l.reps}r`;
-                              return (
-                                <View key={l.id ?? i} style={s.miniSetRow}>
-                                  <Text style={s.miniSetNum}>S{i+1}</Text>
-                                  <Text style={s.miniSetVal}>{valStr}</Text>
-                                  {l.estimated_1rm > 0 && (
-                                    <Text style={s.miniSet1rm}>{Number(l.estimated_1rm).toFixed(1)}kg 1RM</Text>
-                                  )}
-                                  {l.is_pr && <View style={s.prTag}><Text style={s.prTagTxt}>PR</Text></View>}
-                                  <TouchableOpacity onPress={() => l.id && deleteLog(l.id)} style={s.delBtn}>
-                                    <Ionicons name="trash-outline" size={16} color={C.borderLight} />
-                                  </TouchableOpacity>
-                                </View>
-                              );
-                            })}
-                          </View>
-                        </View>
+                  {/* Day header — always visible */}
+                  <TouchableOpacity style={s.dayHeader} onPress={() => toggleDay(date)} activeOpacity={0.8}>
+                    <View style={{ flex: 1 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                        <Text style={s.dayTitle}>{fmtFullDate(date)}</Text>
+                        {hasPR && <View style={s.prBadge}><Text style={s.prBadgeTxt}>PR</Text></View>}
                       </View>
-                    );
-                  })}
+                      {/* Exercise name list */}
+                      <Text style={s.dayExList} numberOfLines={2}>
+                        {exIds.map(id => {
+                          const ex = byEx[id][0]?.exercise ?? getEx(id);
+                          return ex?.name ?? `Ej. ${id}`;
+                        }).join('  ·  ')}
+                      </Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                      <Text style={s.dayMeta}>{dayLogs.length} series</Text>
+                      {totalVol > 0 && <Text style={s.dayVol}>{fmtVol(totalVol)}</Text>}
+                      <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={14} color={C.muted} />
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Expanded detail */}
+                  {isExpanded && (
+                    <View style={s.expandedBody}>
+                      {exIds.map(exId => {
+                        const exLogs = byEx[exId];
+                        const ex = exLogs[0]?.exercise ?? getEx(exId);
+                        const cc = CAT_COLOR[ex?.category ?? ''] ?? C.muted;
+                        const best1rm = exLogs.reduce((b, l) => (l.estimated_1rm || 0) > b ? (l.estimated_1rm || 0) : b, 0);
+                        const bestDur = exLogs.reduce((b, l) => (l.duration_sec || 0) > b ? (l.duration_sec || 0) : b, 0);
+                        const bestReps = exLogs.reduce((b, l) => (l.reps || 0) > b ? (l.reps || 0) : b, 0);
+
+                        let metaStr = '';
+                        if (ex?.tracking_type === 'weight' && best1rm > 0) metaStr = `Best 1RM: ${best1rm.toFixed(1)} kg`;
+                        else if (ex?.tracking_type === 'time') metaStr = `Max: ${bestDur}s`;
+                        else metaStr = `Max: ${bestReps} reps`;
+
+                        return (
+                          <View key={exId} style={s.exGroup}>
+                            <View style={[s.exGroupBar, { backgroundColor: cc }]} />
+                            <View style={{ flex: 1, paddingLeft: 10 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                <Text style={s.exGroupName}>{ex?.name ?? `Ejercicio ${exId}`}</Text>
+                                <Text style={s.exGroupMeta}>{metaStr}</Text>
+                              </View>
+                              <View style={s.setsList}>
+                                {exLogs.map((l, i) => {
+                                  const valStr = ex?.tracking_type === 'weight'
+                                    ? `+${l.added_weight}kg × ${l.reps}r`
+                                    : ex?.tracking_type === 'time' ? `${l.duration_sec}s`
+                                    : `${l.reps}r`;
+                                  return (
+                                    <View key={l.id ?? i} style={s.setRow}>
+                                      <Text style={s.setNum}>S{i + 1}</Text>
+                                      <Text style={s.setVal}>{valStr}</Text>
+                                      {l.estimated_1rm > 0 && (
+                                        <Text style={s.set1rm}>{Number(l.estimated_1rm).toFixed(1)} kg</Text>
+                                      )}
+                                      {l.is_pr && <View style={s.prTag}><Text style={s.prTagTxt}>PR</Text></View>}
+                                      <TouchableOpacity onPress={() => l.id && deleteLog(l.id)} style={s.delBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                        <Ionicons name="trash-outline" size={13} color={C.border} />
+                                      </TouchableOpacity>
+                                    </View>
+                                  );
+                                })}
+                              </View>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
                 </View>
               );
             })
@@ -221,44 +276,51 @@ export default function HistoryScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
-  headerSub: { fontSize: 13, color: C.primary, fontWeight: '700' },
-  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, margin: 12, paddingHorizontal: 14, height: 40, borderRadius: 12, borderWidth: 1, borderColor: C.border },
-  searchInput: { flex: 1, color: C.text, fontSize: 14 },
-  scroll: { padding: 12, paddingBottom: 100, gap: 12 },
-  pageTitle: { fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 4 },
+  statPill: { alignItems: 'center' },
+  statPillVal: { fontSize: 15, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  statPillLbl: { fontSize: 9, color: C.muted, fontWeight: '700', letterSpacing: 0.3 },
+
+  searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, marginHorizontal: 12, marginTop: 10, marginBottom: 6, paddingHorizontal: 12, height: 38, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+  searchInput: { flex: 1, color: C.text, fontSize: 13 },
+
+  catBar: { gap: 6, paddingHorizontal: 12, paddingVertical: 6 },
+  catChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border },
+  catChipActive: { borderColor: C.primary, backgroundColor: C.primaryDim },
+  catDot: { width: 6, height: 6, borderRadius: 3 },
+  catChipTxt: { color: C.textSub, fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+
+  scroll: { padding: 10, paddingBottom: 100, gap: 8 },
+
+  heatCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12, marginBottom: 4 },
+  sectionLabel: { fontSize: 9, fontWeight: '800', color: C.muted, letterSpacing: 1.2, marginBottom: 8 },
+  heatGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
+  heatSquare: { width: 13, height: 13, borderRadius: 3, backgroundColor: C.surfaceHigh, opacity: 0.6 },
+
   empty: { paddingTop: 60, alignItems: 'center', gap: 10 },
-  emptyTxt: { fontSize: 16, color: C.muted, marginTop: 40, textAlign: 'center' },
-  heatmapCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14, marginBottom: 16 },
-  heatmapTitle: { fontSize: 11, fontWeight: '800', color: C.textSub, marginBottom: 10, letterSpacing: 0.5 },
-  heatmapGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' },
-  heatSquare: { width: 14, height: 14, borderRadius: 3 },
-  volCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14, marginBottom: 24 },
-  volTitle: { fontSize: 11, fontWeight: '800', color: C.textSub, marginBottom: 14, letterSpacing: 0.5 },
-  volBars: { gap: 10 },
-  volBarRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  volLabel: { fontSize: 10, fontWeight: '700', color: C.textSub, width: 60 },
-  volBarBg: { flex: 1, height: 8, backgroundColor: C.surfaceHigh, borderRadius: 4, overflow: 'hidden' },
-  volBarFill: { height: '100%', borderRadius: 4 },
-  volVal: { fontSize: 10, fontWeight: '700', color: C.text, width: 42, textAlign: 'right' },
-  dayCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden', elevation: 4, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
-  dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-  dayTitle: { fontSize: 14, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
-  dayMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  prDot: { backgroundColor: C.primary, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3, shadowColor: C.primary, shadowOpacity: 0.5, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  prDotTxt: { fontSize: 9, color: '#fff', fontWeight: '900', letterSpacing: 1 },
-  daySetCount: { fontSize: 11, color: C.mutedLight, fontWeight: '700' },
-  exGroupRow: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border },
-  exGroupBar: { width: 4, borderRadius: 2, alignSelf: 'stretch' },
-  exGroupName: { fontSize: 15, fontWeight: '800', color: C.text, marginBottom: 2 },
-  exGroupMeta: { fontSize: 11, color: C.muted, fontWeight: '700', marginBottom: 8 },
-  setsList: { gap: 6 },
-  miniSetRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  miniSetNum: { fontSize: 10, color: C.mutedLight, fontWeight: '800', width: 20 },
-  miniSetVal: { fontSize: 13, fontWeight: '800', color: C.text },
-  miniSet1rm: { fontSize: 11, color: C.muted, flex: 1 },
-  prTag: { backgroundColor: C.primaryDim, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
-  prTagTxt: { fontSize: 9, color: C.primary, fontWeight: '900', letterSpacing: 0.5 },
-  delBtn: { padding: 4 },
+  emptyTxt: { fontSize: 14, color: C.muted, textAlign: 'center' },
+
+  dayCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
+  dayHeader: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
+  dayTitle: { fontSize: 13, fontWeight: '900', color: C.text, letterSpacing: -0.3 },
+  dayExList: { fontSize: 11, color: C.muted, fontWeight: '600', lineHeight: 16 },
+  dayMeta: { fontSize: 10, color: C.mutedLight, fontWeight: '700' },
+  dayVol: { fontSize: 10, color: C.primary, fontWeight: '800' },
+  prBadge: { backgroundColor: C.primary, borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  prBadgeTxt: { fontSize: 8, color: '#fff', fontWeight: '900', letterSpacing: 0.8 },
+
+  expandedBody: { borderTopWidth: 1, borderTopColor: C.border },
+  exGroup: { flexDirection: 'row', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  exGroupBar: { width: 3, borderRadius: 2, alignSelf: 'stretch' },
+  exGroupName: { fontSize: 13, fontWeight: '800', color: C.text },
+  exGroupMeta: { fontSize: 10, color: C.muted, fontWeight: '600' },
+  setsList: { gap: 5 },
+  setRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  setNum: { fontSize: 9, color: C.mutedLight, fontWeight: '800', width: 18 },
+  setVal: { fontSize: 12, fontWeight: '800', color: C.text },
+  set1rm: { fontSize: 10, color: C.muted, flex: 1 },
+  prTag: { backgroundColor: C.primaryDim, borderRadius: 5, paddingHorizontal: 5, paddingVertical: 2 },
+  prTagTxt: { fontSize: 8, color: C.primary, fontWeight: '900', letterSpacing: 0.5 },
+  delBtn: { padding: 2 },
 });

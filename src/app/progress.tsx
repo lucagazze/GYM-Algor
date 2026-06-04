@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity,
-  ActivityIndicator, Dimensions, Modal, FlatList,
+  ActivityIndicator, Dimensions, Modal, FlatList, Share, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-chart-kit';
@@ -11,18 +11,83 @@ import { workoutService, RM, Exercise, WorkoutLog } from '../utils/workoutServic
 import { C, CAT_COLOR } from '../constants/theme';
 
 const W = Dimensions.get('window').width;
-
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 function fmtDate(d: string) {
   const p = d.split('-');
   return p.length === 3 ? `${p[2]}/${p[1]}` : d;
 }
-
 function fmtMonth(m: string) {
   const parts = m.split('-');
   if (parts.length < 2) return m;
   return MONTHS[parseInt(parts[1]) - 1] ?? m;
+}
+
+function linearRegression(points: { x: number; y: number }[]) {
+  const n = points.length;
+  if (n < 2) return null;
+  const sumX = points.reduce((s, p) => s + p.x, 0);
+  const sumY = points.reduce((s, p) => s + p.y, 0);
+  const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
+  const sumX2 = points.reduce((s, p) => s + p.x * p.x, 0);
+  const denom = n * sumX2 - sumX * sumX;
+  if (denom === 0) return null;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  return { slope, intercept };
+}
+
+function calcProjection(
+  monthlyBests: { month: string; best1rm: number }[],
+  goalKg: number,
+): { monthsToGoal: number; targetLabel: string; ratePerMonth: number } | null {
+  if (monthlyBests.length < 3) return null;
+  const last = monthlyBests[monthlyBests.length - 1];
+  if (last.best1rm >= goalKg) return null;
+
+  // Use last 6 months max for trend
+  const slice = monthlyBests.slice(-6);
+  const [fy, fm] = slice[0].month.split('-').map(Number);
+  const toNum = (m: string) => {
+    const [y, mo] = m.split('-').map(Number);
+    return (y - fy) * 12 + (mo - fm);
+  };
+  const points = slice.map(m => ({ x: toNum(m.month), y: m.best1rm }));
+  const reg = linearRegression(points);
+  if (!reg || reg.slope <= 0) return null;
+
+  const lastX = points[points.length - 1].x;
+  const monthsToGoal = Math.ceil((goalKg - (reg.intercept + reg.slope * lastX)) / reg.slope);
+  if (monthsToGoal <= 0 || monthsToGoal > 36) return null;
+
+  const target = new Date();
+  target.setMonth(target.getMonth() + monthsToGoal);
+  const targetLabel = `${MONTHS[target.getMonth()]} ${target.getFullYear()}`;
+
+  return { monthsToGoal, targetLabel, ratePerMonth: Math.round(reg.slope * 10) / 10 };
+}
+
+async function sharePR(pr: WorkoutLog, exName: string, trackingType: string) {
+  let msg = '';
+  if (trackingType === 'weight') {
+    msg = `Nuevo PR 🏆\n${exName}\n+${pr.added_weight}kg × ${pr.reps} reps\n1RM estimado: ${Number(pr.estimated_1rm).toFixed(1)}kg\n\n#AlgorLift`;
+  } else if (trackingType === 'time') {
+    msg = `Nuevo PR 🏆\n${exName}\n${pr.duration_sec} segundos\n\n#AlgorLift`;
+  } else {
+    msg = `Nuevo PR 🏆\n${exName}\n${pr.reps} reps\n\n#AlgorLift`;
+  }
+  if (Platform.OS === 'web') {
+    try {
+      if ((navigator as any).share) {
+        await (navigator as any).share({ text: msg });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(msg);
+        Alert.alert('Copiado', 'Texto del PR copiado al portapapeles');
+      }
+    } catch {}
+    return;
+  }
+  try { await Share.share({ message: msg }); } catch {}
 }
 
 export default function ProgressScreen() {
@@ -33,14 +98,19 @@ export default function ProgressScreen() {
   const [best1rm, setBest1rm] = useState(0);
   const [bestDate, setBestDate] = useState('');
   const [yearGoal, setYearGoal] = useState<number | null>(null);
+  const [weeklyVolume, setWeeklyVolume] = useState<{ category: string; sets: number }[]>([]);
   const [loading, setLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [chartMode, setChartMode] = useState<'sessions' | 'monthly'>('sessions');
 
   useEffect(() => {
     (async () => {
-      const list = await workoutService.getExercises();
+      const [list, vol] = await Promise.all([
+        workoutService.getExercises(),
+        workoutService.getWeeklyVolumeByCategory(),
+      ]);
       setExercises(list);
+      setWeeklyVolume(vol);
       if (list.length > 0) setSelected(list[0]);
     })();
   }, []);
@@ -79,6 +149,8 @@ export default function ProgressScreen() {
 
   const goalPct = yearGoal && best1rm ? Math.min(100, Math.round((best1rm / yearGoal) * 100)) : null;
   const catColor = CAT_COLOR[selected?.category ?? ''] ?? C.primary;
+  const projection = yearGoal && monthlyBests.length >= 3
+    ? calcProjection(monthlyBests, yearGoal) : null;
 
   const sessionsForChart = [...logs].reverse().slice(-20);
   const hasSessionData = sessionsForChart.length >= 2;
@@ -103,15 +175,38 @@ export default function ProgressScreen() {
   const yLabel = selected?.tracking_type === 'time' ? 's' : selected?.tracking_type === 'reps' ? '' : 'kg';
   const prs = logs.filter(l => l.is_pr).slice(0, 8);
 
+  const maxVolSets = Math.max(...weeklyVolume.map(v => v.sets), 1);
+
   return (
-    <SafeAreaView style={s.container} edges={['top','left','right']}>
+    <SafeAreaView style={s.container} edges={['top', 'left', 'right']}>
       <View style={s.header}>
         <Text style={s.logo}>ALGO<Text style={{ color: C.primary }}>R</Text>LIFT</Text>
         <Text style={s.headerSub}>Progreso</Text>
       </View>
 
       <ScrollView contentContainerStyle={s.scroll}>
-        <Text style={s.pageTitle}>Progreso</Text>
+
+        {/* Weekly Volume */}
+        {weeklyVolume.some(v => v.sets > 0) && (
+          <View style={s.card}>
+            <Text style={s.sectionLabel}>VOLUMEN SEMANAL — ÚLTIMOS 7 DÍAS</Text>
+            <View style={s.volGrid}>
+              {weeklyVolume.map(v => {
+                const cc = CAT_COLOR[v.category] ?? C.primary;
+                const pct = (v.sets / maxVolSets) * 100;
+                return (
+                  <View key={v.category} style={s.volItem}>
+                    <View style={s.volBarWrap}>
+                      <View style={[s.volBarFill, { height: `${Math.max(4, pct)}%` as any, backgroundColor: cc }]} />
+                    </View>
+                    <Text style={[s.volVal, { color: v.sets > 0 ? cc : C.muted }]}>{v.sets}</Text>
+                    <Text style={s.volLbl}>{v.category.slice(0, 3)}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
 
         {/* Exercise Selector */}
         <TouchableOpacity style={[s.exCard, { borderLeftColor: catColor }]} onPress={() => setPickerOpen(true)}>
@@ -153,8 +248,8 @@ export default function ProgressScreen() {
 
             {/* 1RM Percentages */}
             {selected.tracking_type === 'weight' && best1rm > 0 && (
-              <View style={s.pctCard}>
-                <Text style={s.pctTitle}>TABLA DE PORCENTAJES (1RM: {RM.format(best1rm)} kg)</Text>
+              <View style={s.card}>
+                <Text style={s.sectionLabel}>PORCENTAJES — 1RM: {RM.format(best1rm)} kg</Text>
                 <View style={s.pctGrid}>
                   {[95, 90, 85, 80, 75, 70, 65, 60].map(pct => (
                     <View key={pct} style={s.pctCell}>
@@ -168,9 +263,9 @@ export default function ProgressScreen() {
 
             {/* Year Goal */}
             {goalPct !== null && yearGoal && (
-              <View style={s.goalCard}>
+              <View style={s.card}>
                 <View style={s.goalHeaderRow}>
-                  <Text style={s.goalLabel}>META 2026</Text>
+                  <Text style={s.sectionLabel}>META 2026</Text>
                   <Text style={s.goalTarget}>{yearGoal} kg</Text>
                 </View>
                 <View style={s.goalBarBg}>
@@ -180,6 +275,18 @@ export default function ProgressScreen() {
                   <Text style={s.goalCurrent}>{RM.format(best1rm)} kg actual</Text>
                   <Text style={[s.goalPct, { color: goalPct >= 100 ? C.success : catColor }]}>{goalPct}%</Text>
                 </View>
+
+                {/* Projection */}
+                {projection && (
+                  <View style={s.projectionRow}>
+                    <Ionicons name="trending-up" size={14} color={catColor} />
+                    <Text style={s.projectionTxt}>
+                      Al ritmo actual (+{projection.ratePerMonth} kg/mes) llegás en{' '}
+                      <Text style={{ color: catColor, fontWeight: '900' }}>{projection.targetLabel}</Text>
+                      {' '}({projection.monthsToGoal} {projection.monthsToGoal === 1 ? 'mes' : 'meses'})
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 
@@ -200,16 +307,16 @@ export default function ProgressScreen() {
             </View>
 
             {/* Chart */}
-            <View style={s.chartCard}>
-              <Text style={s.chartTitle}>
-                {selected.tracking_type === 'weight' ? 'Evolución 1RM (kg)' :
-                 selected.tracking_type === 'time' ? 'Evolución Hold (seg)' : 'Evolución Reps'}
+            <View style={s.card}>
+              <Text style={s.sectionLabel}>
+                {selected.tracking_type === 'weight' ? 'EVOLUCIÓN 1RM (kg)' :
+                 selected.tracking_type === 'time' ? 'EVOLUCIÓN HOLD (seg)' : 'EVOLUCIÓN REPS'}
               </Text>
               {activeChartData ? (
                 <LineChart
                   data={activeChartData}
                   width={W - 60}
-                  height={200}
+                  height={180}
                   yAxisSuffix={yLabel}
                   chartConfig={{
                     backgroundColor: C.surface,
@@ -218,17 +325,17 @@ export default function ProgressScreen() {
                     decimalPlaces: 1,
                     color: (opacity = 1) => `${catColor}${Math.round(opacity * 255).toString(16).padStart(2, '0')}`,
                     labelColor: () => C.muted,
-                    propsForDots: { r: '5', strokeWidth: '2', stroke: C.bg, fill: catColor },
+                    propsForDots: { r: '4', strokeWidth: '2', stroke: C.bg, fill: catColor },
                     propsForBackgroundLines: { stroke: C.border },
                   }}
                   bezier
-                  style={{ borderRadius: 10, marginTop: 10 }}
+                  style={{ borderRadius: 10, marginTop: 8 }}
                   withInnerLines
                   withOuterLines={false}
                 />
               ) : (
                 <View style={s.noData}>
-                  <MaterialCommunityIcons name="chart-line" size={40} color={C.border} />
+                  <MaterialCommunityIcons name="chart-line" size={36} color={C.border} />
                   <Text style={s.noDataTxt}>Faltan más registros para graficar</Text>
                 </View>
               )}
@@ -236,13 +343,14 @@ export default function ProgressScreen() {
 
             {/* Monthly Bests Table */}
             {monthlyBests.length > 0 && (
-              <View style={s.tableCard}>
-                <Text style={s.tableTitle}>MEJOR POR MES</Text>
-                {monthlyBests.slice(-12).reverse().map((mb, i) => {
-                  const prevIdx = monthlyBests.length - i - 2;
-                  const prev = prevIdx >= 0 ? monthlyBests[prevIdx] : null;
-                  const up = prev && mb.best1rm > prev.best1rm;
-                  const down = prev && mb.best1rm < prev.best1rm;
+              <View style={s.card}>
+                <Text style={s.sectionLabel}>MEJOR POR MES</Text>
+                {monthlyBests.slice(-12).reverse().map((mb, i, arr) => {
+                  const prevIdx = arr.length - 1 - i - 1;
+                  // Compare against previous month in the reversed array
+                  const prevMb = arr[i + 1];
+                  const up = prevMb && mb.best1rm > prevMb.best1rm;
+                  const down = prevMb && mb.best1rm < prevMb.best1rm;
                   return (
                     <View key={mb.month} style={s.tableRow}>
                       <Text style={s.tableMonth}>{fmtMonth(mb.month)}</Text>
@@ -263,8 +371,8 @@ export default function ProgressScreen() {
 
             {/* PRs List */}
             {prs.length > 0 && (
-              <View style={s.tableCard}>
-                <Text style={s.tableTitle}>RECORDS PERSONALES</Text>
+              <View style={s.card}>
+                <Text style={s.sectionLabel}>RÉCORDS PERSONALES</Text>
                 {prs.map((pr, i) => (
                   <View key={pr.id ?? i} style={s.prRow}>
                     <View style={[s.prRank, i === 0 && s.prRankGold]}>
@@ -283,6 +391,13 @@ export default function ProgressScreen() {
                       )}
                     </View>
                     <Text style={s.prDate}>{fmtDate(pr.date)}</Text>
+                    <TouchableOpacity
+                      onPress={() => sharePR(pr, selected.name, selected.tracking_type)}
+                      style={s.shareBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="share-outline" size={16} color={C.muted} />
+                    </TouchableOpacity>
                   </View>
                 ))}
               </View>
@@ -298,7 +413,7 @@ export default function ProgressScreen() {
             <View style={s.sheetHeader}>
               <Text style={s.sheetTitle}>ELEGIR EJERCICIO</Text>
               <TouchableOpacity onPress={() => setPickerOpen(false)}>
-                <Ionicons name="close" size={26} color={C.text} />
+                <Ionicons name="close" size={24} color={C.text} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -332,64 +447,73 @@ export default function ProgressScreen() {
 
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
   headerSub: { fontSize: 12, color: C.muted, fontWeight: '600' },
-  scroll: { padding: 14, paddingBottom: 100, gap: 14 },
-  pageTitle: { fontSize: 24, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 2 },
-  exCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13, borderLeftWidth: 4 },
+  scroll: { padding: 12, paddingBottom: 100, gap: 12 },
+  sectionLabel: { fontSize: 9, fontWeight: '800', color: C.muted, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 },
+  card: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14 },
+
+  // Weekly volume (bar chart vertical)
+  volGrid: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'flex-end', height: 70, gap: 8 },
+  volItem: { flex: 1, alignItems: 'center', gap: 3 },
+  volBarWrap: { flex: 1, width: '60%', justifyContent: 'flex-end', alignItems: 'center' },
+  volBarFill: { width: '100%', borderRadius: 4, minHeight: 4 },
+  volVal: { fontSize: 12, fontWeight: '900' },
+  volLbl: { fontSize: 8, fontWeight: '700', color: C.muted, letterSpacing: 0.5 },
+
+  exCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, borderLeftWidth: 4 },
   exLabel: { fontSize: 9, color: C.muted, fontWeight: '700', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 3 },
   exName: { fontSize: 15, fontWeight: '800', color: C.text, letterSpacing: -0.3 },
-  statsRow: { flexDirection: 'row', gap: 10 },
-  statCard: { flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14, alignItems: 'center' },
-  statLabel: { fontSize: 9, fontWeight: '800', color: C.muted, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
-  statVal: { fontSize: 22, fontWeight: '900', color: C.text, letterSpacing: -0.8 },
+
+  statsRow: { flexDirection: 'row', gap: 8 },
+  statCard: { flex: 1, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12, alignItems: 'center' },
+  statLabel: { fontSize: 8, fontWeight: '800', color: C.muted, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4 },
+  statVal: { fontSize: 20, fontWeight: '900', color: C.text, letterSpacing: -0.8 },
+  statUnit: { fontSize: 10, color: C.muted, fontWeight: '600' },
+  statDate: { fontSize: 9, color: C.mutedLight, marginTop: 4 },
+
+  pctGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  pctCell: { width: '22%', backgroundColor: C.surfaceHigh, borderRadius: 8, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: C.border },
+  pctLabel: { fontSize: 11, fontWeight: '800', color: C.muted, marginBottom: 2 },
+  pctVal: { fontSize: 11, fontWeight: '900' },
+
   goalHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  goalLabel: { fontSize: 10, fontWeight: '800', color: C.muted, letterSpacing: 1.5, textTransform: 'uppercase' },
   goalTarget: { fontSize: 14, fontWeight: '900', color: C.text },
   goalBarBg: { height: 6, backgroundColor: C.surfaceHigh, borderRadius: 3, marginBottom: 8, overflow: 'hidden' },
   goalBarFill: { height: 6, borderRadius: 3 },
   goalFooterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   goalCurrent: { fontSize: 11, color: C.muted, fontWeight: '600' },
   goalPct: { fontSize: 13, fontWeight: '900' },
+  projectionRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 7, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border },
+  projectionTxt: { flex: 1, fontSize: 12, color: C.textSub, fontWeight: '600', lineHeight: 17 },
+
   chartToggleRow: { flexDirection: 'row', gap: 6, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 4 },
   chartToggleBtn: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: 9 },
   chartToggleTxt: { fontSize: 10, fontWeight: '800', color: C.muted, letterSpacing: 1 },
-  chartCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14 },
-  chartTitle: { fontSize: 11, fontWeight: '700', color: C.textSub, marginBottom: 4 },
-  noData: { paddingVertical: 40, alignItems: 'center', gap: 10 },
+  noData: { paddingVertical: 30, alignItems: 'center', gap: 8 },
   noDataTxt: { fontSize: 12, color: C.muted, textAlign: 'center' },
-  sheetItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
 
-  tableCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, padding: 16, elevation: 2, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-  tableTitle: { fontSize: 11, fontWeight: '900', color: C.mutedLight, letterSpacing: 1, marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.border },
   tableRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
-  tableMonth: { width: 44, fontSize: 13, color: C.textSub, fontWeight: '800' },
-  tableVal: { flex: 1, fontSize: 16, fontWeight: '900', color: C.text, textAlign: 'right' },
-  tableUnit: { fontSize: 12, color: C.muted },
+  tableMonth: { width: 40, fontSize: 13, color: C.textSub, fontWeight: '800' },
+  tableVal: { flex: 1, fontSize: 15, fontWeight: '900', color: C.text, textAlign: 'right' },
+  tableUnit: { fontSize: 11, color: C.muted },
 
-  prRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-  prRank: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
+  prRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border, gap: 0 },
+  prRank: { width: 30, height: 30, borderRadius: 15, backgroundColor: C.surfaceHigh, alignItems: 'center', justifyContent: 'center' },
   prRankGold: { backgroundColor: '#F59E0B25' },
-  prRankTxt: { fontSize: 12, fontWeight: '900', color: C.muted },
-  prMain: { fontSize: 15, fontWeight: '800', color: C.text },
-  pr1rm: { fontSize: 12, color: C.primary, fontWeight: '800', marginTop: 4 },
-  prDate: { fontSize: 11, color: C.muted, fontWeight: '700' },
+  prRankTxt: { fontSize: 11, fontWeight: '900', color: C.muted },
+  prMain: { fontSize: 14, fontWeight: '800', color: C.text },
+  pr1rm: { fontSize: 11, color: C.primary, fontWeight: '800', marginTop: 2 },
+  prDate: { fontSize: 10, color: C.muted, fontWeight: '700', marginRight: 8 },
+  shareBtn: { padding: 4 },
 
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: C.surface, height: '80%', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderTopColor: C.border },
-  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: C.border },
-  sheetTitle: { fontSize: 16, fontWeight: '900', color: C.text, letterSpacing: 1 },
-  statUnit: { fontSize: 10, color: C.muted, fontWeight: '600' },
-  statDate: { fontSize: 9, color: C.mutedLight, marginTop: 4 },
-  pctCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 14, marginBottom: 16 },
-  pctTitle: { fontSize: 11, fontWeight: '800', color: C.textSub, marginBottom: 10, letterSpacing: 0.5 },
-  pctGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' },
-  pctCell: { width: '22%', backgroundColor: C.surfaceHigh, borderRadius: 8, padding: 8, alignItems: 'center', borderWidth: 1, borderColor: C.border },
-  pctLabel: { fontSize: 12, fontWeight: '800', color: C.muted, marginBottom: 2 },
-  pctVal: { fontSize: 12, fontWeight: '800' },
-  goalCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, padding: 16, marginBottom: 16 },
+  sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border },
+  sheetTitle: { fontSize: 14, fontWeight: '900', color: C.text, letterSpacing: 1 },
+  sheetItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, gap: 10 },
   sheetDot: { width: 4, height: 28, borderRadius: 2 },
-  sheetItemName: { fontSize: 15, fontWeight: '800', color: C.textSub },
-  sheetItemSub: { fontSize: 11, color: C.muted, marginTop: 4 },
+  sheetItemName: { fontSize: 14, fontWeight: '800', color: C.textSub },
+  sheetItemSub: { fontSize: 11, color: C.muted, marginTop: 3 },
 });
