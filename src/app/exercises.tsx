@@ -11,46 +11,6 @@ import { workoutService, Exercise } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
 import { MUSCLE_ORDER, MUSCLE_COLOR, getMuscle, muscleChips } from '../constants/muscles';
 
-const CAT_ICON: Record<string, string> = {
-  EMPUJE: '💪', TRACCION: '🙌', PIERNA: '🦵', SKILL: '⭐',
-};
-
-// Muscle group display order + colors
-const MUSCLE_ORDER = [
-  'Pecho', 'Hombros', 'Tríceps', 'Bíceps',
-  'Espalda', 'Trapecios',
-  'Cuádriceps', 'Isquiotibiales', 'Glúteos', 'Gemelos', 'Sóleo',
-  'Core', 'Abdominales',
-  'Otros',
-];
-
-const MUSCLE_COLOR: Record<string, string> = {
-  'Pecho':          '#FF2A5F',
-  'Hombros':        '#FF6B35',
-  'Tríceps':        '#FF2A5F',
-  'Bíceps':         '#00E5FF',
-  'Espalda':        '#00E5FF',
-  'Trapecios':      '#0EA5E9',
-  'Cuádriceps':     '#A855F7',
-  'Isquiotibiales': '#9333EA',
-  'Glúteos':        '#C084FC',
-  'Gemelos':        '#A855F7',
-  'Sóleo':          '#A855F7',
-  'Core':           '#EAB308',
-  'Abdominales':    '#EAB308',
-  'Otros':          '#71717A',
-};
-
-const MUSCLE_EMOJI: Record<string, string> = {
-  'Pecho':          '🫁', 'Hombros':        '🔺',
-  'Tríceps':        '💪', 'Bíceps':         '💪',
-  'Espalda':        '🙌', 'Trapecios':      '🙌',
-  'Cuádriceps':     '🦵', 'Isquiotibiales': '🦵',
-  'Glúteos':        '🍑', 'Gemelos':        '🦵',
-  'Sóleo':          '🦵', 'Core':           '⭐',
-  'Abdominales':    '⭐', 'Otros':          '•',
-};
-
 type Category = 'EMPUJE' | 'TRACCION' | 'PIERNA' | 'SKILL';
 type TrackingType = 'weight' | 'time' | 'reps';
 
