@@ -262,18 +262,32 @@ export const workoutService = {
 
   async getTodayLogs(exerciseId: number, date?: string): Promise<WorkoutLog[]> {
     const userId = await uid();
-    if (!userId) return [];
     const targetDate = date ?? new Date().toISOString().split('T')[0];
-    try {
-      const { data, error } = await supabase
-        .from('workout_logs')
-        .select('*')
-        .eq('exercise_id', exerciseId)
-        .eq('user_id', userId)
-        .eq('date', targetDate)
-        .order('created_at', { ascending: true });
-      return !error && data ? data : [];
-    } catch { return []; }
+
+    let dbLogs: WorkoutLog[] = [];
+    if (userId) {
+      try {
+        const { data, error } = await supabase
+          .from('workout_logs')
+          .select('*')
+          .eq('exercise_id', exerciseId)
+          .eq('user_id', userId)
+          .eq('date', targetDate)
+          .order('created_at', { ascending: true });
+        if (!error && data) dbLogs = data;
+      } catch {}
+    }
+
+    // Include offline logs for this exercise/date (fallback while migration is pending)
+    const offlineStr = await storage.get(KEYS.offlineLogs);
+    const offlineLogs: WorkoutLog[] = offlineStr ? JSON.parse(offlineStr) : [];
+    const offlineForToday = offlineLogs.filter(
+      l => l.exercise_id === exerciseId && l.date === targetDate
+    );
+
+    const dbIds = new Set(dbLogs.map(l => l.id));
+    const merged = [...dbLogs, ...offlineForToday.filter(l => !dbIds.has(l.id))];
+    return merged.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''));
   },
 
   async getAllRecentLogs(limit = 100): Promise<WorkoutLog[]> {
@@ -310,13 +324,14 @@ export const workoutService = {
     const logToSave = { ...log, is_pr: isPR, user_id: userId };
 
     try {
-      const { data, error } = await supabase
-        .from('workout_logs')
-        .insert([logToSave])
-        .select()
-        .single();
-      if (error) throw new Error(error.message);
-      return { data };
+      let res = await supabase.from('workout_logs').insert([logToSave]).select().single();
+      // If user_id column doesn't exist yet (migration pending), retry without it
+      if (res.error && res.error.message.includes('user_id')) {
+        const { user_id: _, ...logWithoutUser } = logToSave;
+        res = await supabase.from('workout_logs').insert([logWithoutUser]).select().single();
+      }
+      if (res.error) throw new Error(res.error.message);
+      return { data: res.data };
     } catch {
       const offlineStr = await storage.get(KEYS.offlineLogs);
       const offlineList: WorkoutLog[] = offlineStr ? JSON.parse(offlineStr) : [];
