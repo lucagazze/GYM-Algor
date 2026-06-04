@@ -9,6 +9,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { workoutService, Exercise } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
+import { MUSCLE_ORDER, MUSCLE_COLOR, getMuscle, muscleChips } from '../constants/muscles';
 
 const CAT_ICON: Record<string, string> = {
   EMPUJE: '💪', TRACCION: '🙌', PIERNA: '🦵', SKILL: '⭐',
@@ -60,12 +61,20 @@ const TRACKING_TYPES: { key: TrackingType; label: string; desc: string }[] = [
   { key: 'reps', label: 'Repeticiones', desc: 'Solo cuenta reps, sin peso (Muscle Ups...)' },
 ];
 
+// Auto-derive category from muscle group
+const MUSCLE_TO_CATEGORY: Record<string, Category> = {
+  'Pecho': 'EMPUJE', 'Hombros': 'EMPUJE', 'Tríceps': 'EMPUJE',
+  'Bíceps': 'TRACCION', 'Espalda': 'TRACCION', 'Trapecios': 'TRACCION',
+  'Cuádriceps': 'PIERNA', 'Isquiotibiales': 'PIERNA', 'Glúteos': 'PIERNA',
+  'Gemelos': 'PIERNA', 'Sóleo': 'PIERNA',
+  'Core': 'SKILL', 'Abdominales': 'SKILL', 'Otros': 'EMPUJE',
+};
+
 interface FormState {
   name: string;
   category: Category;
   tracking_type: TrackingType;
   muscle_group: string;
-  notes: string;
 }
 
 const emptyForm = (): FormState => ({
@@ -73,7 +82,6 @@ const emptyForm = (): FormState => ({
   category: 'EMPUJE',
   tracking_type: 'weight',
   muscle_group: '',
-  notes: '',
 });
 
 export default function ExercisesScreen() {
@@ -107,7 +115,6 @@ export default function ExercisesScreen() {
       category: ex.category as Category,
       tracking_type: ex.tracking_type as TrackingType,
       muscle_group: ex.muscle_group ?? '',
-      notes: ex.notes ?? '',
     });
     setModalOpen(true);
   };
@@ -124,7 +131,6 @@ export default function ExercisesScreen() {
         category: form.category,
         tracking_type: form.tracking_type,
         muscle_group: form.muscle_group,
-        notes: form.notes,
       });
       if (error) Alert.alert('Error', error);
     } else {
@@ -133,7 +139,6 @@ export default function ExercisesScreen() {
         category: form.category,
         tracking_type: form.tracking_type,
         muscle_group: form.muscle_group,
-        notes: form.notes,
         is_custom: true,
       });
       if (error) Alert.alert('Error', error);
@@ -313,19 +318,22 @@ export default function ExercisesScreen() {
                 placeholderTextColor={C.muted}
               />
 
-              <Text style={s.fieldLabel}>CATEGORÍA</Text>
-              <View style={s.optRow}>
-                {CATEGORIES.map(cat => {
-                  const col = CAT_COLOR[cat];
-                  const active = form.category === cat;
+              <Text style={s.fieldLabel}>GRUPO MUSCULAR</Text>
+              <View style={s.muscleGrid}>
+                {MUSCLE_ORDER.map(m => {
+                  const active = form.muscle_group === m;
+                  const col = MUSCLE_COLOR[m] ?? C.muted;
                   return (
                     <TouchableOpacity
-                      key={cat}
-                      style={[s.optBtn, active && { backgroundColor: col + '22', borderColor: col }]}
-                      onPress={() => setForm(f => ({ ...f, category: cat }))}
+                      key={m}
+                      style={[s.muscleChip, active && { backgroundColor: col + '28', borderColor: col }]}
+                      onPress={() => setForm(f => ({
+                        ...f,
+                        muscle_group: m,
+                        category: MUSCLE_TO_CATEGORY[m] ?? 'EMPUJE',
+                      }))}
                     >
-                      <Text style={s.optEmoji}>{CAT_ICON[cat]}</Text>
-                      <Text style={[s.optLabel, active && { color: col }]}>{cat}</Text>
+                      <Text style={[s.muscleChipTxt, active && { color: col }]}>{m}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -348,25 +356,6 @@ export default function ExercisesScreen() {
                   </TouchableOpacity>
                 );
               })}
-
-              <Text style={s.fieldLabel}>GRUPO MUSCULAR (opcional)</Text>
-              <TextInput
-                style={s.field}
-                value={form.muscle_group}
-                onChangeText={v => setForm(f => ({ ...f, muscle_group: v }))}
-                placeholder="Ej: Tríceps, Pecho, Espalda..."
-                placeholderTextColor={C.muted}
-              />
-
-              <Text style={s.fieldLabel}>NOTAS (opcional)</Text>
-              <TextInput
-                style={[s.field, { height: 80, textAlignVertical: 'top', paddingTop: 12 }]}
-                value={form.notes}
-                onChangeText={v => setForm(f => ({ ...f, notes: v }))}
-                placeholder="Tips de técnica..."
-                placeholderTextColor={C.muted}
-                multiline
-              />
 
               <TouchableOpacity
                 onPress={handleSave}
@@ -443,10 +432,9 @@ const s = StyleSheet.create({
   fieldLabel: { fontSize: 10, color: C.mutedLight, fontWeight: '800', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 },
   field: { backgroundColor: C.bg, color: C.text, paddingHorizontal: 14, height: 44, borderRadius: 12, fontSize: 14, fontWeight: '700', borderWidth: 1, borderColor: C.border },
 
-  optRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  optBtn: { flex: 1, minWidth: '45%', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12 },
-  optEmoji: { fontSize: 18, marginBottom: 4 },
-  optLabel: { fontSize: 10, color: C.mutedLight, fontWeight: '800', letterSpacing: 0.5 },
+  muscleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  muscleChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: C.bg, borderWidth: 1, borderColor: C.border },
+  muscleChipTxt: { fontSize: 12, color: C.mutedLight, fontWeight: '700' },
 
   trackingOpt: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, padding: 12, marginBottom: 8 },
   trackingOptActive: { borderColor: C.primary, backgroundColor: C.primaryDim },
