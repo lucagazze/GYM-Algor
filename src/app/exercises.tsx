@@ -173,69 +173,60 @@ export default function ExercisesScreen() {
         <ActivityIndicator color={C.primary} size="large" style={{ marginTop: 60 }} />
       ) : (
         <ScrollView contentContainerStyle={s.scroll}>
-          <Text style={s.pageTitle}>Ejercicios</Text>
+          {Object.entries(grouped).map(([cat, items]) => {
+            const cc = CAT_COLOR[cat] ?? C.muted;
+            return (
+              <View key={cat} style={s.catSection}>
+                {/* Section header */}
+                <View style={[s.catSectionHeader, { borderLeftColor: cc }]}>
+                  <Text style={s.catSectionIcon}>{CAT_ICON[cat]}</Text>
+                  <Text style={[s.catSectionLabel, { color: cc }]}>{cat}</Text>
+                  <Text style={s.catSectionCount}>{items.length}</Text>
+                </View>
 
-          {Object.entries(grouped).map(([cat, items]) => (
-            <View key={cat} style={s.catSection}>
-              <View style={[s.catSectionHeader, { borderLeftColor: CAT_COLOR[cat] }]}>
-                <Text style={s.catSectionIcon}>{CAT_ICON[cat]}</Text>
-                <Text style={[s.catSectionLabel, { color: CAT_COLOR[cat] }]}>{cat}</Text>
-                <Text style={s.catSectionCount}>{items.length}</Text>
-              </View>
-              {items.map(ex => (
-                <TouchableOpacity
-                  key={ex.id}
-                  style={s.exCard}
-                  onPress={() => openEdit(ex)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[s.exBar, { backgroundColor: CAT_COLOR[ex.category] ?? C.muted }]} />
-                  <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10 }}>
-                    <View style={s.exTopRow}>
-                      <Text style={s.exName}>{ex.name}</Text>
-                      {ex.is_custom && (
-                        <View style={s.customBadge}>
-                          <Text style={s.customBadgeTxt}>CUSTOM</Text>
-                        </View>
-                      )}
-                      {ex.is_favorite && (
-                        <Ionicons name="star" size={12} color="#F59E0B" />
-                      )}
-                    </View>
-                    <Text style={s.exMeta}>
-                      {ex.tracking_type === 'weight' ? '⚖️ Peso + Reps' :
-                       ex.tracking_type === 'time' ? '⏱️ Segundos' : '🔢 Repeticiones'}
-                      {ex.muscle_group ? ` · ${ex.muscle_group}` : ''}
-                    </Text>
-                    {ex.notes ? <Text style={s.exNotes}>{ex.notes}</Text> : null}
-                  </View>
-                  <View style={s.exActions}>
-                    <TouchableOpacity
-                      style={s.actionBtn}
-                      onPress={async () => {
-                        await workoutService.toggleFavorite(ex.id);
-                        await loadExercises();
-                      }}
-                    >
-                      <Ionicons
-                        name={ex.is_favorite ? 'star' : 'star-outline'}
-                        size={15}
-                        color={ex.is_favorite ? '#F59E0B' : C.muted}
-                      />
-                    </TouchableOpacity>
-                    {ex.is_custom && (
+                {/* Table */}
+                <View style={s.tableWrap}>
+                  {items.map((ex, i) => {
+                    const typeIcon = ex.tracking_type === 'time' ? '⏱' : ex.tracking_type === 'reps' ? '🔢' : '⚖️';
+                    return (
                       <TouchableOpacity
-                        style={s.actionBtn}
-                        onPress={() => handleDelete(ex)}
+                        key={ex.id}
+                        style={[s.exRow, i % 2 === 1 && s.exRowAlt]}
+                        onPress={() => openEdit(ex)}
+                        activeOpacity={0.7}
                       >
-                        <Ionicons name="trash-outline" size={15} color={C.error} />
+                        <View style={[s.exColorBar, { backgroundColor: cc }]} />
+                        <Text style={s.exName} numberOfLines={1}>{ex.name}</Text>
+                        {ex.muscle_group ? (
+                          <Text style={s.exMuscle} numberOfLines={1}>{ex.muscle_group}</Text>
+                        ) : null}
+                        <Text style={s.exTypeIcon}>{typeIcon}</Text>
+                        <TouchableOpacity
+                          onPress={async (e) => {
+                            e.stopPropagation?.();
+                            await workoutService.toggleFavorite(ex.id);
+                            await loadExercises();
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                        >
+                          <Ionicons
+                            name={ex.is_favorite ? 'star' : 'star-outline'}
+                            size={13}
+                            color={ex.is_favorite ? '#F59E0B' : C.surfaceHigh}
+                          />
+                        </TouchableOpacity>
+                        {ex.is_custom && (
+                          <View style={s.customBadge}>
+                            <Text style={s.customBadgeTxt}>+</Text>
+                          </View>
+                        )}
                       </TouchableOpacity>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          ))}
+                    );
+                  })}
+                </View>
+              </View>
+            );
+          })}
 
           {Object.keys(grouped).length === 0 && (
             <View style={s.empty}>
@@ -366,25 +357,23 @@ const s = StyleSheet.create({
   catChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 18, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
   catChipTxt: { color: C.mutedLight, fontSize: 11, fontWeight: '800' },
 
-  scroll: { padding: 12, paddingBottom: 100, gap: 14 },
-  pageTitle: { fontSize: 26, fontWeight: '900', color: C.text, letterSpacing: -0.5, marginBottom: 2 },
+  scroll: { padding: 12, paddingBottom: 100, gap: 6 },
 
-  catSection: { gap: 8 },
-  catSectionHeader: { flexDirection: 'row', alignItems: 'center', borderLeftWidth: 4, paddingLeft: 10, gap: 6 },
-  catSectionIcon: { fontSize: 14 },
-  catSectionLabel: { fontSize: 13, fontWeight: '900', letterSpacing: 1, flex: 1 },
-  catSectionCount: { fontSize: 11, color: C.muted, fontWeight: '700' },
+  catSection: { gap: 0 },
+  catSectionHeader: { flexDirection: 'row', alignItems: 'center', borderLeftWidth: 3, paddingLeft: 10, paddingVertical: 8, gap: 6, marginTop: 4 },
+  catSectionIcon: { fontSize: 13 },
+  catSectionLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 1, flex: 1 },
+  catSectionCount: { fontSize: 10, color: C.muted, fontWeight: '700' },
 
-  exCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden', elevation: 2, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
-  exBar: { width: 4, alignSelf: 'stretch' },
-  exTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  exName: { fontSize: 15, fontWeight: '900', color: C.text, flex: 1 },
-  customBadge: { backgroundColor: C.surfaceHigh, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 3 },
-  customBadgeTxt: { fontSize: 8, color: C.mutedLight, fontWeight: '900', letterSpacing: 0.5 },
-  exMeta: { fontSize: 11, color: C.muted, fontWeight: '700' },
-  exNotes: { fontSize: 10, color: C.mutedLight, fontStyle: 'italic', marginTop: 4 },
-  exActions: { flexDirection: 'column', alignItems: 'center', paddingRight: 10, gap: 10 },
-  actionBtn: { padding: 6 },
+  tableWrap: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 12, overflow: 'hidden', marginTop: 4 },
+  exRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 10, gap: 8 },
+  exRowAlt: { backgroundColor: C.surfaceHigh + '55' },
+  exColorBar: { width: 3, height: 16, borderRadius: 2 },
+  exName: { flex: 1, fontSize: 13, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
+  exMuscle: { fontSize: 10, color: C.muted, fontWeight: '600', maxWidth: 80 },
+  exTypeIcon: { fontSize: 12, width: 18, textAlign: 'center' },
+  customBadge: { width: 18, height: 18, borderRadius: 9, backgroundColor: C.primary + '33', alignItems: 'center', justifyContent: 'center' },
+  customBadgeTxt: { fontSize: 11, color: C.primary, fontWeight: '900' },
 
   empty: { paddingTop: 60, alignItems: 'center', gap: 10 },
   emptyTxt: { color: C.mutedLight, fontSize: 15, fontWeight: '700' },

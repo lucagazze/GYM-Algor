@@ -361,46 +361,66 @@ export default function RoutinesScreen() {
           </View>
         ) : (
           routines.map(r => {
-            const firstCat = getEx(r.exerciseIds[0])?.category;
-            const accentColor = CAT_COLOR[firstCat ?? ''] ?? C.primary;
+            const catCounts: Record<string, number> = {};
+            r.exerciseIds.forEach(id => {
+              const cat = getEx(id)?.category ?? 'OTROS';
+              catCounts[cat] = (catCounts[cat] || 0) + 1;
+            });
             return (
               <View key={r.id} style={s.routineCard}>
-                <View style={[s.cardAccent, { backgroundColor: accentColor }]} />
-                <View style={s.cardBody}>
-                  {/* Top row */}
-                  <View style={s.cardRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.routineName} numberOfLines={1}>{r.name}</Text>
-                      <Text style={s.routineExCount}>{r.exerciseIds.length} ejercicio{r.exerciseIds.length !== 1 ? 's' : ''}</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => openEdit(r)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}>
-                      <Ionicons name="pencil-outline" size={15} color={C.muted} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => deleteRoutine(r.id, r.name)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}>
-                      <Ionicons name="trash-outline" size={15} color={C.muted} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => startSession(r)} activeOpacity={0.8} style={{ marginLeft: 6 }}>
-                      <LinearGradient
-                        colors={[C.primary, '#D91646']}
-                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                        style={s.playBtn}
-                      >
-                        <Ionicons name="play" size={14} color="#fff" />
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
 
-                  {/* Exercise dots */}
-                  <View style={s.dotsRow}>
-                    {r.exerciseIds.map((id, i) => {
-                      const ex = getEx(id);
-                      const cc = CAT_COLOR[ex?.category ?? ''] ?? C.muted;
-                      return (
-                        <View key={id} style={[s.dot, { backgroundColor: cc }]} />
-                      );
-                    })}
+                {/* ── Card header ── */}
+                <View style={s.cardHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.routineName} numberOfLines={1}>{r.name}</Text>
+                    <View style={s.catPills}>
+                      {Object.entries(catCounts).map(([cat, n]) => (
+                        <View key={cat} style={[s.catPill, { backgroundColor: (CAT_COLOR[cat] ?? C.muted) + '22' }]}>
+                          <View style={[s.catPillDot, { backgroundColor: CAT_COLOR[cat] ?? C.muted }]} />
+                          <Text style={[s.catPillTxt, { color: CAT_COLOR[cat] ?? C.muted }]}>{n} {cat.slice(0,3)}</Text>
+                        </View>
+                      ))}
+                    </View>
                   </View>
+                  <TouchableOpacity onPress={() => openEdit(r)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}>
+                    <Ionicons name="pencil-outline" size={14} color={C.muted} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteRoutine(r.id, r.name)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                    <Ionicons name="trash-outline" size={14} color={C.muted} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => startSession(r)} activeOpacity={0.8} style={{ marginLeft: 4 }}>
+                    <LinearGradient colors={[C.primary, '#D91646']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.playBtn}>
+                      <Ionicons name="play" size={11} color="#fff" />
+                      <Text style={s.playTxt}>INICIAR</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </View>
+
+                {/* ── Exercise table ── */}
+                <View style={s.table}>
+                  {/* Column headers */}
+                  <View style={s.tableHead}>
+                    <Text style={[s.tableHdr, { width: 22 }]}>#</Text>
+                    <Text style={[s.tableHdr, { flex: 1 }]}>EJERCICIO</Text>
+                    <Text style={[s.tableHdr, { width: 46 }]}>CAT.</Text>
+                    <Text style={[s.tableHdr, { width: 32, textAlign: 'right' }]}>TIPO</Text>
+                  </View>
+                  {r.exerciseIds.map((id, i) => {
+                    const ex = getEx(id);
+                    const cc = CAT_COLOR[ex?.category ?? ''] ?? C.muted;
+                    const typeIcon = ex?.tracking_type === 'time' ? '⏱' : ex?.tracking_type === 'reps' ? '🔢' : '⚖️';
+                    return (
+                      <View key={id} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+                        <Text style={s.tableNum}>{i + 1}</Text>
+                        <View style={[s.tableCatBar, { backgroundColor: cc }]} />
+                        <Text style={s.tableExName} numberOfLines={1}>{ex?.name ?? `Ejercicio ${id}`}</Text>
+                        <Text style={[s.tableCatTxt, { color: cc, width: 46 }]}>{ex?.category?.slice(0, 4) ?? '—'}</Text>
+                        <Text style={[s.tableType, { width: 28 }]}>{typeIcon}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+
               </View>
             );
           })
@@ -712,22 +732,36 @@ const s = StyleSheet.create({
   logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 6 },
   newBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 10, letterSpacing: 0.5 },
-  scroll: { padding: 12, paddingBottom: 100, gap: 8 },
+  scroll: { padding: 12, paddingBottom: 100, gap: 10 },
 
   empty: { paddingTop: 60, alignItems: 'center', gap: 8 },
   emptyTitle: { fontSize: 15, fontWeight: '800', color: C.mutedLight },
   emptySub: { fontSize: 12, color: C.muted, textAlign: 'center', maxWidth: 240 },
 
-  routineCard: { flexDirection: 'row', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
-  cardAccent: { width: 3, alignSelf: 'stretch' },
-  cardBody: { flex: 1, paddingHorizontal: 12, paddingVertical: 10, gap: 7 },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  routineName: { fontSize: 15, fontWeight: '900', color: C.text, letterSpacing: -0.3 },
-  routineExCount: { fontSize: 10, color: C.muted, fontWeight: '600', marginTop: 1 },
-  iconBtn: { padding: 4 },
-  playBtn: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  dotsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
-  dot: { width: 7, height: 7, borderRadius: 4 },
+  // ── Routine Card ──────────────────────────────────────────
+  routineCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden' },
+
+  cardHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, gap: 6, borderBottomWidth: 1, borderBottomColor: C.border },
+  routineName: { fontSize: 15, fontWeight: '900', color: C.text, letterSpacing: -0.4, marginBottom: 5 },
+  catPills: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
+  catPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
+  catPillDot: { width: 5, height: 5, borderRadius: 3 },
+  catPillTxt: { fontSize: 9, fontWeight: '800', letterSpacing: 0.3 },
+  iconBtn: { padding: 5 },
+  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
+  playTxt: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+
+  // ── Exercise Table ────────────────────────────────────────
+  table: { },
+  tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 5, backgroundColor: C.surfaceHigh },
+  tableHdr: { fontSize: 8, fontWeight: '800', color: C.muted, letterSpacing: 0.8, textTransform: 'uppercase' },
+  tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9, gap: 8 },
+  tableRowAlt: { backgroundColor: C.surfaceHigh + '55' },
+  tableNum: { fontSize: 10, color: C.muted, fontWeight: '800', width: 18 },
+  tableCatBar: { width: 3, height: 14, borderRadius: 2 },
+  tableExName: { flex: 1, fontSize: 13, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
+  tableCatTxt: { fontSize: 9, fontWeight: '800', letterSpacing: 0.3 },
+  tableType: { fontSize: 13, textAlign: 'right' },
 
   // Modal/sheet shared
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
