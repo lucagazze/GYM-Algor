@@ -171,8 +171,6 @@ export default function RoutinesScreen() {
       workoutService.getExercises(),
       folderService.getAll(),
     ]);
-    const bw = await workoutService.getSavedBodyWeight();
-    setBodyW(parseFloat(bw) || 86);
     setRoutines(rs);
     setExercises(exs);
     setFolders(fols);
@@ -369,14 +367,13 @@ export default function RoutinesScreen() {
     const exId = session.exerciseIds[session.currentIdx];
     const ex = getEx(exId);
     if (!ex) return;
-    const live1rm = ex.tracking_type === 'weight' ? RM.average(bodyW + addedW, repsVal) : 0;
+    const live1rm = ex.tracking_type === 'weight' ? RM.average(addedW, repsVal) : 0;
     setSaving(true);
-    await workoutService.saveBodyWeight(String(bodyW));
     const result = await workoutService.saveLog({
       date: todayStr(),
       exercise_id: exId,
       added_weight: ex.tracking_type === 'weight' ? addedW : 0,
-      body_weight: bodyW,
+      body_weight: 0,
       reps: ex.tracking_type === 'reps' ? repsVal : (ex.tracking_type === 'weight' ? repsVal : 0),
       duration_sec: ex.tracking_type === 'time' ? durVal : 0,
       estimated_1rm: live1rm,
@@ -402,7 +399,7 @@ export default function RoutinesScreen() {
     if (!lastLog || !session) return;
     const ex = getEx(session.exerciseIds[session.currentIdx]);
     if (!ex) return;
-    if (ex.tracking_type === 'weight') { setAddedW((lastLog.added_weight||0) + (overload ? 1.25 : 0)); setRepsVal(lastLog.reps||5); }
+    if (ex.tracking_type === 'weight') { setAddedW((lastLog.added_weight||0) + (overload ? 2.5 : 0)); setRepsVal(lastLog.reps||5); }
     else if (ex.tracking_type === 'time') setDurVal((lastLog.duration_sec||10) + (overload ? 5 : 0));
     else setRepsVal((lastLog.reps||5) + (overload ? 1 : 0));
     Vibration.vibrate(30);
@@ -995,8 +992,7 @@ export default function RoutinesScreen() {
                     </View>
                     {ex?.tracking_type === 'weight' && (
                       <>
-                        <RowStepper label="Peso corporal" value={bodyW} onChange={setBodyW} step={0.5} min={0} decimals={1} />
-                        <RowStepper label="Lastre (kg)" value={addedW} onChange={setAddedW} step={0.5} min={0} decimals={1} onPressCalc={() => setCalcOpen(true)} />
+                        <RowStepper label="Peso (kg)" value={addedW} onChange={setAddedW} step={2.5} min={0} decimals={1} onPressCalc={() => setCalcOpen(true)} />
                         <RowStepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
                       </>
                     )}

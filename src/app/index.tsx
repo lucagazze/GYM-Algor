@@ -114,7 +114,6 @@ export default function LogScreen() {
   const [saving, setSaving] = useState(false);
   const [logDate, setLogDate] = useState(todayStr);
 
-  const [bodyW, setBodyW] = useState(86);
   const [addedW, setAddedW] = useState(0);
   const [repsVal, setRepsVal] = useState(5);
   const [durationVal, setDurationVal] = useState(10);
@@ -134,8 +133,8 @@ export default function LogScreen() {
   const [filterCat, setFilterCat] = useState('TODOS');
 
   const isToday = logDate === todayStr();
-  const live1rm = selected?.tracking_type === 'weight' && repsVal > 0 && (addedW > 0 || bodyW > 0)
-    ? RM.average(bodyW + addedW, repsVal) : 0;
+  const live1rm = selected?.tracking_type === 'weight' && repsVal > 0 && addedW > 0
+    ? RM.average(addedW, repsVal) : 0;
   const isLivePR = live1rm > bestEver && live1rm > 0;
 
   const changeDate = (days: number) => {
@@ -154,8 +153,6 @@ export default function LogScreen() {
       ]);
       setExercises(list);
       if (list.length > 0) setSelected(list[0]);
-      const bw = await workoutService.getSavedBodyWeight();
-      setBodyW(parseFloat(bw) || 86);
       if (user) {
         setIsAdmin(user.id === '4268fa86-a71b-48bb-8421-998177c39f3d');
       }
@@ -221,12 +218,11 @@ export default function LogScreen() {
       Alert.alert('Faltan segundos', 'Ingresá la duración.'); return;
     }
     setSaving(true);
-    await workoutService.saveBodyWeight(String(bodyW));
     const result = await workoutService.saveLog({
       date: logDate,
       exercise_id: selected.id,
       added_weight: addedW,
-      body_weight: bodyW,
+      body_weight: 0,
       reps: repsVal,
       duration_sec: selected.tracking_type === 'time' ? durationVal : 0,
       estimated_1rm: live1rm,
@@ -238,7 +234,7 @@ export default function LogScreen() {
     const newSet = result.data!;
     setTodaySets(prev => [...prev, newSet]);
     setBestEver(prev => Math.max(prev, live1rm || durationVal || repsVal));
-    setAddedW(0); setRepsVal(5); setNotes('');
+    setRepsVal(5); setNotes('');
     setRestSecs(0); setRestActive(true);
     
     if (newSet.is_pr) {
@@ -268,7 +264,7 @@ export default function LogScreen() {
   const copyLast = (overload = false) => {
     if (!lastLog || !selected) return;
     if (selected.tracking_type === 'weight') {
-      setAddedW((lastLog.added_weight || 0) + (overload ? 1.25 : 0));
+      setAddedW((lastLog.added_weight || 0) + (overload ? 2.5 : 0));
       setRepsVal(lastLog.reps || 5);
     } else if (selected.tracking_type === 'time') {
       setDurationVal((lastLog.duration_sec || 10) + (overload ? 5 : 0));
@@ -277,6 +273,9 @@ export default function LogScreen() {
     }
     Vibration.vibrate(30);
   };
+
+  // Quick weight chips from recent logs
+  const quickWeights = [...new Set(recentLogs.map(l => l.added_weight).filter(w => w > 0))].slice(0, 4);
 
   const cats = muscleChips(exercises);
   const filteredExercises = exercises
@@ -392,8 +391,20 @@ export default function LogScreen() {
 
             {selected?.tracking_type === 'weight' && (
               <>
-                <Stepper label="Peso corporal" value={bodyW} onChange={setBodyW} step={0.5} min={0} decimals={1} />
-                <Stepper label="Lastre (kg)" value={addedW} onChange={setAddedW} step={0.5} min={0} decimals={1} onPressCalc={() => setCalcOpen(true)} />
+                <Stepper label="Peso (kg)" value={addedW} onChange={setAddedW} step={2.5} min={0} decimals={1} onPressCalc={() => setCalcOpen(true)} />
+                {quickWeights.length > 0 && (
+                  <View style={s.quickWeights}>
+                    {quickWeights.map(w => (
+                      <TouchableOpacity
+                        key={w}
+                        style={[s.quickChip, addedW === w && { borderColor: C.primary, backgroundColor: C.primaryDim }]}
+                        onPress={() => { setAddedW(w); Vibration.vibrate(20); }}
+                      >
+                        <Text style={[s.quickChipTxt, addedW === w && { color: C.primary }]}>{w} kg</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
                 <Stepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
               </>
             )}
@@ -403,14 +414,6 @@ export default function LogScreen() {
             {selected?.tracking_type === 'reps' && (
               <Stepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
             )}
-            
-            <TextInput
-              style={s.notesInput}
-              placeholder="Notas de la serie (ej. RIR 2, técnica ok)..."
-              placeholderTextColor={C.muted}
-              value={notes}
-              onChangeText={setNotes}
-            />
 
             <TouchableOpacity
               onPress={handleSave}
@@ -641,6 +644,9 @@ const s = StyleSheet.create({
   saveBtn: { height: 42, alignItems: 'center', justifyContent: 'center' },
   saveBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 13, letterSpacing: 1 },
   notesInput: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.border, borderRadius: 12, color: C.text, fontSize: 12, paddingHorizontal: 14, paddingVertical: 10, marginHorizontal: 14, marginTop: 8, marginBottom: 12 },
+  quickWeights: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: C.border },
+  quickChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border },
+  quickChipTxt: { fontSize: 12, fontWeight: '800', color: C.textSub },
 
   infoCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
   infoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
