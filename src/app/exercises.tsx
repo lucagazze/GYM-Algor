@@ -84,6 +84,10 @@ export default function ExercisesScreen() {
       Alert.alert('Falta nombre', 'Ingresá un nombre para el ejercicio.');
       return;
     }
+    if (!form.muscle_group) {
+      Alert.alert('Falta grupo muscular', 'Seleccioná un grupo muscular.');
+      return;
+    }
     setSaving(true);
     if (editTarget) {
       const { error } = await workoutService.updateExercise(editTarget.id, {
@@ -92,7 +96,7 @@ export default function ExercisesScreen() {
         tracking_type: form.tracking_type,
         muscle_group: form.muscle_group,
       });
-      if (error) Alert.alert('Error', error);
+      if (error) { Alert.alert('Error', error); setSaving(false); return; }
     } else {
       const { error } = await workoutService.createExercise({
         name: form.name.trim(),
@@ -101,7 +105,7 @@ export default function ExercisesScreen() {
         muscle_group: form.muscle_group,
         is_custom: true,
       });
-      if (error) Alert.alert('Error', error);
+      if (error) { Alert.alert('Error', error); setSaving(false); return; }
     }
     setSaving(false);
     setModalOpen(false);
@@ -127,8 +131,6 @@ export default function ExercisesScreen() {
       ]
     );
   };
-
-  const getMuscle = (ex: Exercise): string => ex.muscle_group?.trim() || 'Otros';
 
   // Build filter chips from actual muscle groups in canonical order
   const availableMuscles = MUSCLE_ORDER.filter(m =>
