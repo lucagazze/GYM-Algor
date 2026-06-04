@@ -163,13 +163,17 @@ export default function ExercisesScreen() {
     );
   };
 
-  const cats = ['TODOS', ...CATEGORIES];
-
   const getMuscle = (ex: Exercise): string => ex.muscle_group?.trim() || 'Otros';
+
+  // Build filter chips from actual muscle groups in canonical order
+  const availableMuscles = MUSCLE_ORDER.filter(m =>
+    exercises.some(e => getMuscle(e) === m)
+  );
+  const cats = ['TODOS', ...availableMuscles];
 
   const filtered = filterCat === 'TODOS'
     ? exercises
-    : exercises.filter(e => e.category === filterCat);
+    : exercises.filter(e => getMuscle(e) === filterCat);
 
   const grouped: Record<string, Exercise[]> = {};
   for (const ex of filtered) {
@@ -207,7 +211,7 @@ export default function ExercisesScreen() {
       >
         {cats.map(c => {
           const active = filterCat === c;
-          const col = c === 'TODOS' ? C.primary : (CAT_COLOR[c] ?? C.primary);
+          const col = c === 'TODOS' ? C.primary : (MUSCLE_COLOR[c] ?? C.primary);
           return (
             <TouchableOpacity
               key={c}
