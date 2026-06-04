@@ -409,9 +409,9 @@ const s = StyleSheet.create({
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
   addBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 11, letterSpacing: 0.5 },
 
-  catRow: { borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0 },
-  catChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
-  catChipTxt: { color: C.mutedLight, fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+  catRow: { borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0, minHeight: 46 },
+  catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
+  catChipTxt: { color: C.mutedLight, fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
 
   scroll: { padding: 12, paddingBottom: 100, gap: 6 },
 
