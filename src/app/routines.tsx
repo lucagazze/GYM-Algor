@@ -143,27 +143,64 @@ export default function RoutinesScreen() {
 
   const [restActive, setRestActive] = useState(false);
   const [restSecs, setRestSecs] = useState(0);
+  const [restStartMs, setRestStartMs] = useState(0);
   const [restTarget, setRestTarget] = useState(90);
   const restRef = useRef<NodeJS.Timeout | null>(null);
+  const [recentLogs, setRecentLogs] = useState<WorkoutLog[]>([]);
 
   const [calcOpen, setCalcOpen] = useState(false);
 
-  useFocusEffect(useCallback(() => { load(); }, []));
+  const stopRest = () => {
+    setRestActive(false);
+    setRestSecs(0);
+    setRestStartMs(0);
+    if (typeof window !== 'undefined') { localStorage.removeItem('rest_start_ms'); localStorage.removeItem('rest_target_secs'); }
+  };
+
+  const startRest = () => {
+    const ms = Date.now();
+    setRestStartMs(ms);
+    setRestSecs(0);
+    setRestActive(true);
+    if (typeof window !== 'undefined') { localStorage.setItem('rest_start_ms', String(ms)); localStorage.setItem('rest_target_secs', String(restTarget)); }
+  };
+
+  useFocusEffect(useCallback(() => {
+    load();
+    // Restore rest timer from absolute timestamp
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('rest_start_ms');
+      if (stored) {
+        const startMs = parseInt(stored);
+        const elapsed = Math.floor((Date.now() - startMs) / 1000);
+        if (elapsed < 600) {
+          const target = parseInt(localStorage.getItem('rest_target_secs') ?? '90');
+          setRestStartMs(startMs);
+          setRestTarget(target);
+          setRestSecs(elapsed);
+          setRestActive(true);
+        } else {
+          localStorage.removeItem('rest_start_ms');
+          localStorage.removeItem('rest_target_secs');
+        }
+      }
+    }
+  }, []));
 
   useEffect(() => {
-    if (restActive) {
+    if (restActive && restStartMs > 0) {
       restRef.current = setInterval(() => {
-        setRestSecs(s => {
-          const next = s + 1;
-          if (next === restTarget) {
-            Vibration.vibrate([0, 500, 200, 500, 200, 500]);
-          }
-          return next;
-        });
+        const elapsed = Math.floor((Date.now() - restStartMs) / 1000);
+        if (elapsed === restTarget) Vibration.vibrate([0, 500, 200, 500, 200, 500]);
+        if (elapsed >= 600) {
+          setRestActive(false);
+          if (typeof window !== 'undefined') { localStorage.removeItem('rest_start_ms'); localStorage.removeItem('rest_target_secs'); }
+        }
+        setRestSecs(elapsed);
       }, 1000);
     } else if (restRef.current) clearInterval(restRef.current);
     return () => { if (restRef.current) clearInterval(restRef.current); };
-  }, [restActive, restTarget]);
+  }, [restActive, restStartMs, restTarget]);
 
   const load = async () => {
     setLoading(true);
@@ -372,13 +409,15 @@ export default function RoutinesScreen() {
   const loadSessionExData = async (sess: ActiveSession, idx: number) => {
     const exId = sess.exerciseIds[idx];
     setAddedW(0); setRepsVal(5); setDurVal(10); setNotes('');
-    const [last, today] = await Promise.all([
+    const [last, today, recent] = await Promise.all([
       workoutService.getLastLog(exId),
       workoutService.getTodayLogs(exId, todayStr()),
+      workoutService.getLogsForExercise(exId, 20),
     ]);
     const prevLast = last?.date !== todayStr() ? last : null;
     setLastLog(prevLast);
     setTodaySets(today);
+    setRecentLogs(recent.filter(l => l.date !== todayStr()).slice(0, 15));
   };
 
   const sessionNext = async () => {
@@ -424,7 +463,7 @@ export default function RoutinesScreen() {
     if (result.data) {
       setTodaySets(prev => [...prev, result.data!]);
       setNotes('');
-      setRestSecs(0); setRestActive(true);
+      startRest();
       if (result.data.is_pr) {
         Vibration.vibrate([0, 100, 50, 100]);
         Alert.alert('🏆 RÉCORD', `1RM: ${RM.format(live1rm)} kg`);
@@ -989,15 +1028,10 @@ export default function RoutinesScreen() {
                   </TouchableOpacity>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                     {restActive && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <TouchableOpacity onPress={() => setRestTarget(t => t === 60 ? 90 : t === 90 ? 120 : t === 120 ? 180 : 60)} style={s.restTargetBtn}>
-                          <Text style={s.restTargetTxt}>{restTarget / 60}m</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => { setRestActive(false); setRestSecs(0); }} style={[s.restBadge, restSecs >= restTarget && { backgroundColor: C.success }]}>
-                          <Ionicons name="timer-outline" size={12} color="#fff" />
-                          <Text style={s.restTxt}>{fmtTimer(restSecs)}</Text>
-                        </TouchableOpacity>
-                      </View>
+                      <TouchableOpacity onPress={stopRest} style={[s.restBadge, restSecs >= restTarget && { backgroundColor: C.success }]}>
+                        <Ionicons name="timer-outline" size={12} color="#fff" />
+                        <Text style={s.restTxt}>{fmtTimer(restSecs)}</Text>
+                      </TouchableOpacity>
                     )}
                     <Text style={s.sessTimer}>{fmtTimer(sessionSecs)}</Text>
                   </View>
@@ -1070,6 +1104,31 @@ export default function RoutinesScreen() {
                     </TouchableOpacity>
                   </View>
 
+                  {/* Big rest timer */}
+                  {restActive && (
+                    <View style={s.restCard}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                        <Text style={s.restCardLabel}>DESCANSO</Text>
+                        <TouchableOpacity onPress={stopRest}>
+                          <Ionicons name="close-circle" size={18} color={C.muted} />
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={[s.restCardTime, restSecs >= restTarget && { color: C.success }]}>
+                        {fmtTimer(restSecs)}<Text style={s.restCardOf}> / {fmtTimer(restTarget)}</Text>
+                      </Text>
+                      <View style={s.restProgressTrack}>
+                        <View style={[s.restProgressFill, { width: `${Math.min((restSecs / restTarget) * 100, 100)}%` as any, backgroundColor: restSecs >= restTarget ? C.success : C.primary }]} />
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+                        {[60, 90, 120, 180].map(t => (
+                          <TouchableOpacity key={t} onPress={() => { setRestTarget(t); if (typeof window !== 'undefined') localStorage.setItem('rest_target_secs', String(t)); }} style={[s.restTargetChip, restTarget === t && { borderColor: C.primary, backgroundColor: C.primaryDim }]}>
+                            <Text style={[s.restTargetChipTxt, restTarget === t && { color: C.primary }]}>{t / 60}m</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
                   {/* History card: today's sets + last session ref */}
                   {(todaySets.length > 0 || lastLog) && (
                     <View style={s.setsCard}>
@@ -1104,6 +1163,41 @@ export default function RoutinesScreen() {
                       )}
                     </View>
                   )}
+
+                  {/* Recent sessions */}
+                  {recentLogs.length > 0 && (() => {
+                    const byDate: Record<string, WorkoutLog[]> = {};
+                    recentLogs.forEach(l => { (byDate[l.date] = byDate[l.date] || []).push(l); });
+                    const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a)).slice(0, 3);
+                    return (
+                      <View style={s.setsCard}>
+                        <View style={s.setsHeader}>
+                          <Text style={s.setsTitle}>ÚLTIMAS SESIONES</Text>
+                          <Text style={s.setsCount}>{dates.length} días</Text>
+                        </View>
+                        {dates.map(date => (
+                          <View key={date}>
+                            <View style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 2, backgroundColor: C.surfaceHigh + '66' }}>
+                              <Text style={{ fontSize: 10, color: C.primary, fontWeight: '700', fontFamily: F.condensed, letterSpacing: 0.8 }}>{fmtShortDate(date)}</Text>
+                            </View>
+                            {byDate[date].map((set, i) => {
+                              const dataStr = ex?.tracking_type === 'weight'
+                                ? `+${set.added_weight} kg × ${set.reps} reps`
+                                : ex?.tracking_type === 'time' ? `${set.duration_sec}s` : `${set.reps} reps`;
+                              return (
+                                <View key={set.id ?? i} style={[s.setRow, set.is_pr && s.setRowPR]}>
+                                  {set.is_pr && <View style={s.prTag}><Text style={s.prTagTxt}>PR</Text></View>}
+                                  <Text style={s.setNum}>S{i + 1}</Text>
+                                  <Text style={[s.setData, { flex: 1, fontSize: 13, color: set.is_pr ? C.primary : C.textSub }]}>{dataStr}</Text>
+                                  {set.estimated_1rm > 0 && <Text style={s.set1rm}>{Number(set.estimated_1rm).toFixed(1)}</Text>}
+                                </View>
+                              );
+                            })}
+                          </View>
+                        ))}
+                      </View>
+                    );
+                  })()}
 
                   {/* Navigation */}
                   <View style={s.navRow}>
@@ -1280,6 +1374,14 @@ const s = StyleSheet.create({
   restTxt: { color: '#fff', fontSize: 11, fontWeight: '800', fontVariant: ['tabular-nums'] },
   restTargetBtn: { backgroundColor: C.surfaceHigh, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: C.border },
   restTargetTxt: { fontSize: 10, color: C.mutedLight, fontWeight: '800' },
+  restCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.primary + '55', borderRadius: 16, padding: 14 },
+  restCardLabel: { fontSize: 10, fontWeight: '800', color: C.primary, fontFamily: F.condensed, letterSpacing: 1.5 },
+  restCardTime: { fontSize: 56, fontWeight: '900', color: C.text, fontFamily: F.condensed, letterSpacing: -1, textAlign: 'center', marginVertical: 4, fontVariant: ['tabular-nums'] as any },
+  restCardOf: { fontSize: 22, color: C.muted, fontWeight: '600' },
+  restProgressTrack: { height: 4, backgroundColor: C.surfaceHigh, borderRadius: 2, overflow: 'hidden', marginTop: 4 },
+  restProgressFill: { height: 4, borderRadius: 2 },
+  restTargetChip: { flex: 1, alignItems: 'center', paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: C.border, backgroundColor: C.bg },
+  restTargetChipTxt: { fontSize: 13, color: C.muted, fontWeight: '700', fontFamily: F.condensed },
   navRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   navBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.borderLight, borderRadius: 12, paddingVertical: 12 },
   navBtnTxt: { color: C.text, fontWeight: '800', fontSize: 13 },
