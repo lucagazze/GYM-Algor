@@ -290,11 +290,11 @@ const s = StyleSheet.create({
   searchWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, marginHorizontal: 12, marginTop: 10, marginBottom: 6, paddingHorizontal: 12, height: 38, borderRadius: 10, borderWidth: 1, borderColor: C.border },
   searchInput: { flex: 1, color: C.text, fontSize: 13 },
 
-  catBar: { gap: 8, paddingHorizontal: 12, paddingVertical: 10 },
-  catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border },
+  catBar: { gap: 8, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' },
+  catChip: { height: 32, paddingHorizontal: 14, borderRadius: 20, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
   catChipActive: { borderColor: C.primary, backgroundColor: C.primaryDim },
   catDot: { width: 6, height: 6, borderRadius: 3 },
-  catChipTxt: { color: C.textSub, fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
+  catChipTxt: { color: C.textSub, fontSize: 12, fontWeight: '800', letterSpacing: 0.2, lineHeight: 14, includeFontPadding: false },
 
   scroll: { padding: 10, paddingBottom: 100, gap: 8 },
 

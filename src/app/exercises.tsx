@@ -229,19 +229,15 @@ export default function ExercisesScreen() {
                             await workoutService.toggleFavorite(ex.id);
                             await loadExercises();
                           }}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 4 }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          style={{ padding: 2 }}
                         >
                           <Ionicons
                             name={ex.is_favorite ? 'star' : 'star-outline'}
-                            size={13}
-                            color={ex.is_favorite ? '#F59E0B' : C.surfaceHigh}
+                            size={20}
+                            color={ex.is_favorite ? '#F59E0B' : C.borderLight}
                           />
                         </TouchableOpacity>
-                        {ex.is_custom && (
-                          <View style={s.customBadge}>
-                            <Text style={s.customBadgeTxt}>+</Text>
-                          </View>
-                        )}
                       </TouchableOpacity>
                     );
                   })}
@@ -360,8 +356,8 @@ const s = StyleSheet.create({
   addBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 11, letterSpacing: 0.5 },
 
   catRow: { borderBottomWidth: 1, borderBottomColor: C.border, flexGrow: 0, minHeight: 46 },
-  catChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border },
-  catChipTxt: { color: C.mutedLight, fontSize: 12, fontWeight: '800', letterSpacing: 0.2 },
+  catChip: { height: 32, paddingHorizontal: 14, borderRadius: 20, backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  catChipTxt: { color: C.mutedLight, fontSize: 12, fontWeight: '800', letterSpacing: 0.2, lineHeight: 14, includeFontPadding: false },
 
   scroll: { padding: 12, paddingBottom: 100, gap: 6 },
 

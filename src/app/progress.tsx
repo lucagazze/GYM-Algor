@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet, Text, View, ScrollView, TouchableOpacity,
-  ActivityIndicator, Dimensions, Modal, FlatList, Share, Platform, Alert,
+  ActivityIndicator, Dimensions, Modal, FlatList, Share, Platform, Alert, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LineChart } from 'react-native-chart-kit';
@@ -9,6 +9,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { workoutService, RM, Exercise, WorkoutLog } from '../utils/workoutService';
 import { C, CAT_COLOR } from '../constants/theme';
+import { MUSCLE_COLOR, getMuscle, muscleChips } from '../constants/muscles';
 
 const W = Dimensions.get('window').width;
 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
@@ -101,6 +102,8 @@ export default function ProgressScreen() {
   const [weeklyVolume, setWeeklyVolume] = useState<{ category: string; sets: number }[]>([]);
   const [loading, setLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState('');
+  const [pickerMuscle, setPickerMuscle] = useState('TODOS');
   const [chartMode, setChartMode] = useState<'sessions' | 'monthly'>('sessions');
 
   useEffect(() => {
@@ -416,12 +419,56 @@ export default function ProgressScreen() {
                 <Ionicons name="close" size={24} color={C.text} />
               </TouchableOpacity>
             </View>
+
+            {/* Search */}
+            <View style={s.pickerSearch}>
+              <Ionicons name="search" size={15} color={C.muted} style={{ marginRight: 8 }} />
+              <TextInput
+                style={s.pickerSearchInput}
+                placeholder="Buscar ejercicio..."
+                placeholderTextColor={C.muted}
+                value={pickerSearch}
+                onChangeText={setPickerSearch}
+              />
+              {pickerSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setPickerSearch('')}>
+                  <Ionicons name="close-circle" size={15} color={C.muted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Muscle filter */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ flexGrow: 0 }}
+              contentContainerStyle={{ gap: 8, paddingHorizontal: 12, paddingVertical: 8, alignItems: 'center' }}
+            >
+              {muscleChips(exercises).map(m => {
+                const active = pickerMuscle === m;
+                const col = m === 'TODOS' ? C.primary : (MUSCLE_COLOR[m] ?? C.primary);
+                return (
+                  <TouchableOpacity
+                    key={m}
+                    style={[s.pickerMuscleChip, active && { borderColor: col, backgroundColor: col + '22' }]}
+                    onPress={() => setPickerMuscle(m)}
+                  >
+                    <Text style={[s.pickerMuscleChipTxt, active && { color: col }]}>{m}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
             <FlatList
-              data={exercises}
+              data={exercises.filter(ex => {
+                const matchQ = !pickerSearch || ex.name.toLowerCase().includes(pickerSearch.toLowerCase());
+                const matchM = pickerMuscle === 'TODOS' || getMuscle(ex) === pickerMuscle;
+                return matchQ && matchM;
+              })}
               keyExtractor={i => String(i.id)}
               contentContainerStyle={{ padding: 14, gap: 8 }}
               renderItem={({ item }) => {
-                const col = CAT_COLOR[item.category] ?? C.muted;
+                const col = MUSCLE_COLOR[getMuscle(item)] ?? CAT_COLOR[item.category] ?? C.muted;
                 const isSel = selected?.id === item.id;
                 return (
                   <TouchableOpacity
@@ -431,7 +478,7 @@ export default function ProgressScreen() {
                     <View style={[s.sheetDot, { backgroundColor: col }]} />
                     <View style={{ flex: 1 }}>
                       <Text style={[s.sheetItemName, isSel && { color: col }]}>{item.name}</Text>
-                      <Text style={s.sheetItemSub}>{item.category}</Text>
+                      <Text style={s.sheetItemSub}>{getMuscle(item)}</Text>
                     </View>
                     {isSel && <Ionicons name="checkmark-circle" size={20} color={col} />}
                   </TouchableOpacity>
@@ -516,4 +563,8 @@ const s = StyleSheet.create({
   sheetDot: { width: 4, height: 28, borderRadius: 2 },
   sheetItemName: { fontSize: 14, fontWeight: '800', color: C.textSub },
   sheetItemSub: { fontSize: 11, color: C.muted, marginTop: 3 },
+  pickerSearch: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.bg, marginHorizontal: 12, marginTop: 8, marginBottom: 4, paddingHorizontal: 12, height: 38, borderRadius: 10, borderWidth: 1, borderColor: C.border },
+  pickerSearchInput: { flex: 1, color: C.text, fontSize: 13 },
+  pickerMuscleChip: { height: 30, paddingHorizontal: 12, borderRadius: 20, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border, alignItems: 'center', justifyContent: 'center' },
+  pickerMuscleChipTxt: { color: C.mutedLight, fontSize: 11, fontWeight: '800', lineHeight: 13, includeFontPadding: false },
 });
