@@ -1048,66 +1048,21 @@ export default function RoutinesScreen() {
                   <Text style={s.progressLabelRight}>{setsCountToday} series</Text>
                 </View>
 
-                <ScrollView contentContainerStyle={s.sessScroll} keyboardShouldPersistTaps="handled">
-                  {/* Current exercise — compact like log's exCard */}
+                <View style={s.sessBody}>
+                  {/* Exercise card */}
                   <View style={s.sessExCard}>
                     <View style={[s.sessExBar, { backgroundColor: cc }]} />
                     <View style={{ flex: 1, paddingLeft: 10 }}>
                       <Text style={s.sessExLabel}>EJERCICIO ACTUAL</Text>
                       <Text style={s.sessExName} numberOfLines={1}>{ex?.name ?? '—'}</Text>
-                      {ex && <Text style={[s.sessExCat, { color: cc }]}>{ex.category}</Text>}
+                      {ex && <Text style={[s.sessExCat, { color: cc }]}>{ex.muscle_group ?? ex.category}</Text>}
                     </View>
                   </View>
 
-                  {/* Form card — like log page */}
-                  <View style={s.sessFormCard}>
-                    <View style={s.formTop}>
-                      <Text style={s.serieLabel}>SERIE {setsCountToday + 1}</Text>
-                      {ex?.tracking_type === 'weight' && (
-                        <View style={s.rmRow}>
-                          <Text style={s.rmVal}>{live1rm > 0 ? `${RM.format(live1rm)} kg` : '—'}</Text>
-                          <Text style={s.rmSub}>1RM</Text>
-                        </View>
-                      )}
-                    </View>
-                    {ex?.tracking_type === 'weight' && (
-                      <>
-                        <RowStepper label="Peso (kg)" value={addedW} onChange={setAddedW} step={2.5} min={0} decimals={1} onPressCalc={() => setCalcOpen(true)} />
-                        <RowStepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
-                      </>
-                    )}
-                    {ex?.tracking_type === 'time' && (
-                      <RowStepper label="Segundos" value={durVal} onChange={setDurVal} step={5} min={1} />
-                    )}
-                    {ex?.tracking_type === 'reps' && (
-                      <RowStepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
-                    )}
-
-                    <TextInput
-                      style={s.notesInput}
-                      placeholder="Notas de la serie (ej. RIR 2, técnica ok)..."
-                      placeholderTextColor={C.muted}
-                      value={notes}
-                      onChangeText={setNotes}
-                    />
-
-                    <TouchableOpacity onPress={sessionLogSet} disabled={saving} activeOpacity={0.8}>
-                      <LinearGradient
-                        colors={[C.primary, '#D91646']}
-                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                        style={[s.sessSaveBtn, saving && { opacity: 0.6 }]}
-                      >
-                        {saving ? <ActivityIndicator color="#fff" size="small" /> : (
-                          <Text style={s.sessSaveBtnTxt}>+ ANOTAR SERIE</Text>
-                        )}
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Big rest timer */}
-                  {restActive && (
-                    <View style={s.restCard}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  {restActive ? (
+                    /* ── DESCANSO: timer grande llena el espacio ── */
+                    <View style={[s.restCard, { flex: 1, justifyContent: 'center' }]}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                         <Text style={s.restCardLabel}>DESCANSO</Text>
                         <TouchableOpacity onPress={stopRest}>
                           <Ionicons name="close-circle" size={18} color={C.muted} />
@@ -1126,31 +1081,67 @@ export default function RoutinesScreen() {
                           </TouchableOpacity>
                         ))}
                       </View>
+                      {todaySets.length > 0 && (
+                        <View style={{ marginTop: 14 }}>
+                          <Text style={{ fontSize: 9, color: C.muted, fontFamily: F.condensed, letterSpacing: 1, marginBottom: 6 }}>SERIES HOY</Text>
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                            {todaySets.map((set, i) => {
+                              const str = ex?.tracking_type === 'weight' ? `${set.added_weight}kg×${set.reps}` : ex?.tracking_type === 'time' ? `${set.duration_sec}s` : `${set.reps}r`;
+                              return (
+                                <View key={i} style={[s.setChip, set.is_pr && { borderColor: C.primary }]}>
+                                  <Text style={s.setChipTxt}>S{i + 1}: {str}</Text>
+                                  {set.is_pr && <Ionicons name="trophy" size={9} color={C.primary} />}
+                                </View>
+                              );
+                            })}
+                          </ScrollView>
+                        </View>
+                      )}
                     </View>
-                  )}
-
-                  {/* History card: today's sets + last session ref */}
-                  {(todaySets.length > 0 || lastLog) && (
-                    <View style={s.setsCard}>
-                      <View style={s.setsHeader}>
-                        <Text style={s.setsTitle}>{todaySets.length > 0 ? 'HOY' : 'ÚLTIMA SESIÓN'}</Text>
-                        {todaySets.length > 0 && <Text style={s.setsCount}>{todaySets.length} series</Text>}
+                  ) : (
+                    /* ── LOG: formulario + series + copiar ── */
+                    <>
+                      <View style={s.sessFormCard}>
+                        <View style={s.formTop}>
+                          <Text style={s.serieLabel}>SERIE {setsCountToday + 1}</Text>
+                          {ex?.tracking_type === 'weight' && (
+                            <View style={s.rmRow}>
+                              <Text style={s.rmVal}>{live1rm > 0 ? `${RM.format(live1rm)} kg` : '—'}</Text>
+                              <Text style={s.rmSub}>1RM</Text>
+                            </View>
+                          )}
+                        </View>
+                        {ex?.tracking_type === 'weight' && (
+                          <>
+                            <RowStepper label="Peso (kg)" value={addedW} onChange={setAddedW} step={2.5} min={0} decimals={1} onPressCalc={() => setCalcOpen(true)} />
+                            <RowStepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />
+                          </>
+                        )}
+                        {ex?.tracking_type === 'time' && <RowStepper label="Segundos" value={durVal} onChange={setDurVal} step={5} min={1} />}
+                        {ex?.tracking_type === 'reps' && <RowStepper label="Repeticiones" value={repsVal} onChange={setRepsVal} step={1} min={1} />}
+                        <TouchableOpacity onPress={sessionLogSet} disabled={saving} activeOpacity={0.8}>
+                          <LinearGradient colors={[C.primary, '#D91646']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.sessSaveBtn, saving && { opacity: 0.6 }]}>
+                            {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={s.sessSaveBtnTxt}>+ ANOTAR SERIE</Text>}
+                          </LinearGradient>
+                        </TouchableOpacity>
                       </View>
-                      {todaySets.map((set, i) => {
-                        const dataStr = ex?.tracking_type === 'weight'
-                          ? `+${set.added_weight} kg × ${set.reps} reps`
-                          : ex?.tracking_type === 'time' ? `${set.duration_sec}s` : `${set.reps} reps`;
-                        return (
-                          <View key={set.id ?? i} style={[s.setRow, set.is_pr && s.setRowPR]}>
-                            {set.is_pr && <View style={s.prTag}><Text style={s.prTagTxt}>PR</Text></View>}
-                            <Text style={s.setNum}>S{i+1}</Text>
-                            <Text style={[s.setData, { flex: 1, color: set.is_pr ? C.primary : C.text }]}>{dataStr}</Text>
-                            {set.estimated_1rm > 0 && <Text style={s.set1rm}>{Number(set.estimated_1rm).toFixed(1)} kg</Text>}
-                          </View>
-                        );
-                      })}
+
+                      {todaySets.length > 0 && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 2 }} style={{ flexGrow: 0 }}>
+                          {todaySets.map((set, i) => {
+                            const str = ex?.tracking_type === 'weight' ? `${set.added_weight}kg×${set.reps}` : ex?.tracking_type === 'time' ? `${set.duration_sec}s` : `${set.reps}r`;
+                            return (
+                              <View key={i} style={[s.setChip, set.is_pr && { borderColor: C.primary }]}>
+                                <Text style={s.setChipTxt}>S{i + 1}: {str}</Text>
+                                {set.is_pr && <Ionicons name="trophy" size={9} color={C.primary} />}
+                              </View>
+                            );
+                          })}
+                        </ScrollView>
+                      )}
+
                       {lastLog && ex && (
-                        <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 14, paddingBottom: 10 }}>
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
                           <TouchableOpacity style={s.copyRow} onPress={() => copyLastToSession(false)} activeOpacity={0.7}>
                             <Ionicons name="copy-outline" size={11} color={C.muted} />
                             <Text style={s.copyTxt}>Copiar {fmtShortDate(lastLog.date)}</Text>
@@ -1161,66 +1152,21 @@ export default function RoutinesScreen() {
                           </TouchableOpacity>
                         </View>
                       )}
-                    </View>
+                    </>
                   )}
-
-                  {/* Recent sessions */}
-                  {recentLogs.length > 0 && (() => {
-                    const byDate: Record<string, WorkoutLog[]> = {};
-                    recentLogs.forEach(l => { (byDate[l.date] = byDate[l.date] || []).push(l); });
-                    const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a)).slice(0, 3);
-                    return (
-                      <View style={s.setsCard}>
-                        <View style={s.setsHeader}>
-                          <Text style={s.setsTitle}>ÚLTIMAS SESIONES</Text>
-                          <Text style={s.setsCount}>{dates.length} días</Text>
-                        </View>
-                        {dates.map(date => (
-                          <View key={date}>
-                            <View style={{ paddingHorizontal: 14, paddingTop: 8, paddingBottom: 2, backgroundColor: C.surfaceHigh + '66' }}>
-                              <Text style={{ fontSize: 10, color: C.primary, fontWeight: '700', fontFamily: F.condensed, letterSpacing: 0.8 }}>{fmtShortDate(date)}</Text>
-                            </View>
-                            {byDate[date].map((set, i) => {
-                              const dataStr = ex?.tracking_type === 'weight'
-                                ? `+${set.added_weight} kg × ${set.reps} reps`
-                                : ex?.tracking_type === 'time' ? `${set.duration_sec}s` : `${set.reps} reps`;
-                              return (
-                                <View key={set.id ?? i} style={[s.setRow, set.is_pr && s.setRowPR]}>
-                                  {set.is_pr && <View style={s.prTag}><Text style={s.prTagTxt}>PR</Text></View>}
-                                  <Text style={s.setNum}>S{i + 1}</Text>
-                                  <Text style={[s.setData, { flex: 1, fontSize: 13, color: set.is_pr ? C.primary : C.textSub }]}>{dataStr}</Text>
-                                  {set.estimated_1rm > 0 && <Text style={s.set1rm}>{Number(set.estimated_1rm).toFixed(1)}</Text>}
-                                </View>
-                              );
-                            })}
-                          </View>
-                        ))}
-                      </View>
-                    );
-                  })()}
 
                   {/* Navigation */}
                   <View style={s.navRow}>
-                    <TouchableOpacity
-                      style={[s.navBtn, session.currentIdx === 0 && { opacity: 0.3 }]}
-                      onPress={sessionPrev}
-                      disabled={session.currentIdx === 0}
-                      activeOpacity={0.8}
-                    >
+                    <TouchableOpacity style={[s.navBtn, session.currentIdx === 0 && { opacity: 0.3 }]} onPress={sessionPrev} disabled={session.currentIdx === 0} activeOpacity={0.8}>
                       <Ionicons name="arrow-back" size={15} color={C.text} />
                       <Text style={s.navBtnTxt}>Anterior</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={s.navBtnNext} onPress={sessionNext} activeOpacity={0.8}>
-                      <Text style={s.navBtnNextTxt}>
-                        {session.currentIdx >= session.exerciseIds.length - 1 ? 'Finalizar' : 'Siguiente'}
-                      </Text>
-                      <Ionicons
-                        name={session.currentIdx >= session.exerciseIds.length - 1 ? 'checkmark' : 'arrow-forward'}
-                        size={15} color="#fff"
-                      />
+                      <Text style={s.navBtnNextTxt}>{session.currentIdx >= session.exerciseIds.length - 1 ? 'Finalizar' : 'Siguiente'}</Text>
+                      <Ionicons name={session.currentIdx >= session.exerciseIds.length - 1 ? 'checkmark' : 'arrow-forward'} size={15} color="#fff" />
                     </TouchableOpacity>
                   </View>
-                </ScrollView>
+                </View>
               </>
             );
           })()}
@@ -1340,6 +1286,9 @@ const s = StyleSheet.create({
   progressLabelLeft: { fontSize: 10, color: C.mutedLight, fontWeight: '700' },
   progressLabelRight: { fontSize: 10, color: C.mutedLight, fontWeight: '700' },
   sessScroll: { padding: 14, paddingBottom: 60, gap: 10 },
+  sessBody: { flex: 1, padding: 10, paddingBottom: 8, gap: 8 },
+  setChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border },
+  setChipTxt: { fontSize: 11, color: C.text, fontWeight: '700', fontFamily: F.condensed },
   sessExCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden', minHeight: 60 },
   sessExBar: { width: 4, alignSelf: 'stretch' },
   sessExLabel: { fontSize: 8, color: C.muted, fontWeight: '800', letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 2 },
