@@ -76,6 +76,12 @@ export const folderService = {
     await supabase.from('routine_folders').delete().eq('id', id).eq('user_id', userId);
   },
 
+  async moveToParent(id: string, parentId: string | null): Promise<void> {
+    const userId = await uid();
+    if (!userId) return;
+    await supabase.from('routine_folders').update({ parent_id: parentId }).eq('id', id).eq('user_id', userId);
+  },
+
   async saveOrder(folders: Folder[]): Promise<void> {
     const userId = await uid();
     if (!userId) return;

@@ -104,6 +104,8 @@ export default function RoutinesScreen() {
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [movingRoutine, setMovingRoutine] = useState<Routine | null>(null);
+  const [moveFolderModalOpen, setMoveFolderModalOpen] = useState(false);
+  const [movingFolder, setMovingFolder] = useState<Folder | null>(null);
 
   // Create / Edit routine modal
   const [createOpen, setCreateOpen] = useState(false);
@@ -217,8 +219,22 @@ export default function RoutinesScreen() {
 
   const moveRoutine = async (folderId: string | null) => {
     if (!movingRoutine) return;
-    await routineService.moveToFolder(movingRoutine.id, folderId);
+    const id = movingRoutine.id;
+    setRoutines(prev => prev.map(r => r.id === id ? { ...r, folderId } : r));
     setMoveModalOpen(false);
+    await routineService.moveToFolder(id, folderId);
+    load();
+  };
+
+  const openMoveFolderModal = (f: Folder) => { setMovingFolder(f); setMoveFolderModalOpen(true); };
+
+  const moveFolder = async (newParentId: string | null) => {
+    if (!movingFolder) return;
+    const id = movingFolder.id;
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, parentId: newParentId } : f));
+    if (newParentId) setExpandedFolders(prev => new Set([...prev, newParentId]));
+    setMoveFolderModalOpen(false);
+    await folderService.moveToParent(id, newParentId);
     load();
   };
 
@@ -597,6 +613,9 @@ export default function RoutinesScreen() {
                       )}
                     </View>
                     <Text style={s.folderCount}>{totalItems} elemento{totalItems !== 1 ? 's' : ''}</Text>
+                    <TouchableOpacity onPress={() => openMoveFolderModal(folder)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                      <Ionicons name="swap-horizontal-outline" size={12} color={C.muted} />
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => openFolderModal(folder)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
                       <Ionicons name="pencil-outline" size={12} color={C.muted} />
                     </TouchableOpacity>
@@ -870,6 +889,42 @@ export default function RoutinesScreen() {
                   <Text style={s.folderMoveCount}>{routines.filter(r => r.folderId === f.id).length} rutinas</Text>
                 </TouchableOpacity>
               ))}
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* ── Move Folder Modal ────────────────────────────── */}
+      <Modal visible={moveFolderModalOpen} animationType="slide" transparent>
+        <View style={s.overlay}>
+          <SafeAreaView style={[s.sheet, { maxHeight: '60%' }]}>
+            <View style={s.sheetHandle} />
+            <View style={s.sheetHeader}>
+              <Text style={s.sheetTitle}>Mover carpeta</Text>
+              <TouchableOpacity onPress={() => setMoveFolderModalOpen(false)} style={s.closeBtn}>
+                <Ionicons name="close" size={20} color={C.text} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: 14, gap: 8 }}>
+              <TouchableOpacity
+                style={[s.folderMoveItem, !movingFolder?.parentId && { borderColor: C.primary, backgroundColor: C.primaryDim }]}
+                onPress={() => moveFolder(null)}
+              >
+                <Ionicons name="git-branch-outline" size={18} color={C.muted} />
+                <Text style={[s.folderMoveItemTxt, !movingFolder?.parentId && { color: C.primary }]}>Nivel raíz</Text>
+              </TouchableOpacity>
+              {folders
+                .filter(f => f.id !== movingFolder?.id && f.parentId !== movingFolder?.id)
+                .map(f => (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={[s.folderMoveItem, movingFolder?.parentId === f.id && { borderColor: C.primary, backgroundColor: C.primaryDim }]}
+                    onPress={() => moveFolder(f.id)}
+                  >
+                    <Ionicons name="folder-outline" size={18} color={movingFolder?.parentId === f.id ? C.primary : C.muted} />
+                    <Text style={[s.folderMoveItemTxt, movingFolder?.parentId === f.id && { color: C.primary }]}>{f.name}</Text>
+                  </TouchableOpacity>
+                ))}
             </ScrollView>
           </SafeAreaView>
         </View>
