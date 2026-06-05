@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
 import { C, CAT_COLOR } from '../constants/theme';
-import { MUSCLE_COLOR, getMuscle, muscleChips } from '../constants/muscles';
+import { MUSCLE_ORDER, MUSCLE_COLOR, getMuscle, muscleChips } from '../constants/muscles';
 import { routineService, folderService, Routine, Folder, ActiveSession } from '../utils/routineService';
 import { workoutService, Exercise, WorkoutLog, RM } from '../utils/workoutService';
 import PlateCalculator from '../components/PlateCalculator';
