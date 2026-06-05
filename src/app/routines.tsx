@@ -99,6 +99,7 @@ export default function RoutinesScreen() {
   // Folders
   const [folders, setFolders] = useState<Folder[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [expandedRoutines, setExpandedRoutines] = useState<Set<string>>(new Set());
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [editingFolder, setEditingFolder] = useState<Folder | null>(null);
@@ -175,6 +176,14 @@ export default function RoutinesScreen() {
     setExercises(exs);
     setFolders(fols);
     setLoading(false);
+  };
+
+  const toggleRoutine = (id: string) => {
+    setExpandedRoutines(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
   };
 
   const toggleFolder = (id: string) => {
@@ -513,9 +522,10 @@ export default function RoutinesScreen() {
       .filter(rx => rx.folderId === r.folderId)
       .sort((a, b) => a.sortOrder - b.sortOrder);
     const idx = group.findIndex(rx => rx.id === r.id);
+    const isExpanded = expandedRoutines.has(r.id);
     return (
       <View style={s.routineCard}>
-        <View style={s.cardHeader}>
+        <TouchableOpacity style={s.cardHeader} onPress={() => toggleRoutine(r.id)} activeOpacity={0.8}>
           <View style={{ flex: 1 }}>
             <Text style={s.routineName} numberOfLines={1}>{r.name}</Text>
             <View style={s.catPills}>
@@ -548,26 +558,28 @@ export default function RoutinesScreen() {
               <Text style={s.playTxt}>INICIAR</Text>
             </LinearGradient>
           </TouchableOpacity>
-        </View>
-        <View style={s.table}>
-          <View style={s.tableHead}>
-            <Text style={[s.tableHdr, { width: 22 }]}>#</Text>
-            <Text style={[s.tableHdr, { flex: 1 }]}>EJERCICIO</Text>
-            <Text style={[s.tableHdr, { width: 46 }]}>MÚSCULO</Text>
+        </TouchableOpacity>
+        {isExpanded && (
+          <View style={s.table}>
+            <View style={s.tableHead}>
+              <Text style={[s.tableHdr, { width: 22 }]}>#</Text>
+              <Text style={[s.tableHdr, { flex: 1 }]}>EJERCICIO</Text>
+              <Text style={[s.tableHdr, { width: 46 }]}>MÚSCULO</Text>
+            </View>
+            {r.exerciseIds.map((id, i) => {
+              const ex = getEx(id);
+              const cc = MUSCLE_COLOR[ex?.muscle_group ?? ''] ?? CAT_COLOR[ex?.category ?? ''] ?? C.muted;
+              return (
+                <View key={id} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
+                  <Text style={s.tableNum}>{i + 1}</Text>
+                  <View style={[s.tableCatBar, { backgroundColor: cc }]} />
+                  <Text style={s.tableExName} numberOfLines={1}>{ex?.name ?? `Ejercicio ${id}`}</Text>
+                  <Text style={[s.tableCatTxt, { color: cc, width: 80 }]} numberOfLines={1}>{ex?.muscle_group ?? ex?.category ?? '—'}</Text>
+                </View>
+              );
+            })}
           </View>
-          {r.exerciseIds.map((id, i) => {
-            const ex = getEx(id);
-            const cc = MUSCLE_COLOR[ex?.muscle_group ?? ''] ?? CAT_COLOR[ex?.category ?? ''] ?? C.muted;
-            return (
-              <View key={id} style={[s.tableRow, i % 2 === 1 && s.tableRowAlt]}>
-                <Text style={s.tableNum}>{i + 1}</Text>
-                <View style={[s.tableCatBar, { backgroundColor: cc }]} />
-                <Text style={s.tableExName} numberOfLines={1}>{ex?.name ?? `Ejercicio ${id}`}</Text>
-                <Text style={[s.tableCatTxt, { color: cc, width: 80 }]} numberOfLines={1}>{ex?.muscle_group ?? ex?.category ?? '—'}</Text>
-              </View>
-            );
-          })}
-        </View>
+        )}
       </View>
     );
   };
