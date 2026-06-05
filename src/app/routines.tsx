@@ -1075,11 +1075,14 @@ export default function RoutinesScreen() {
                         <View style={[s.restProgressFill, { width: `${Math.min((restSecs / restTarget) * 100, 100)}%` as any, backgroundColor: restSecs >= restTarget ? C.success : C.primary }]} />
                       </View>
                       <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
-                        {[60, 90, 120, 180].map(t => (
-                          <TouchableOpacity key={t} onPress={() => { setRestTarget(t); if (typeof window !== 'undefined') localStorage.setItem('rest_target_secs', String(t)); }} style={[s.restTargetChip, restTarget === t && { borderColor: C.primary, backgroundColor: C.primaryDim }]}>
-                            <Text style={[s.restTargetChipTxt, restTarget === t && { color: C.primary }]}>{t / 60}m</Text>
-                          </TouchableOpacity>
-                        ))}
+                        {([90, 150, 180, 240] as const).map(t => {
+                          const lbl = t === 90 ? '1:30' : t === 150 ? '2:30' : t === 180 ? '3:00' : '4:00';
+                          return (
+                            <TouchableOpacity key={t} onPress={() => { setRestTarget(t); if (typeof window !== 'undefined') localStorage.setItem('rest_target_secs', String(t)); }} style={[s.restTargetChip, restTarget === t && { borderColor: C.primary, backgroundColor: C.primaryDim }]}>
+                              <Text style={[s.restTargetChipTxt, restTarget === t && { color: C.primary }]}>{lbl}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
                       </View>
                       {todaySets.length > 0 && (
                         <View style={{ marginTop: 14 }}>
