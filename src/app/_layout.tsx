@@ -8,7 +8,7 @@ import { StyleSheet } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { C } from '../constants/theme';
+import { C, F } from '../constants/theme';
 import { supabase } from '../utils/supabase';
 import LoginScreen from './login';
 
@@ -77,9 +77,10 @@ export default function RootLayout() {
           tabBarActiveTintColor: C.primary,
           tabBarInactiveTintColor: C.muted,
           tabBarLabelStyle: {
-            fontSize: 9,
-            fontWeight: '800',
-            letterSpacing: 0.5,
+            fontSize: 10,
+            fontWeight: '700',
+            fontFamily: F.condensed,
+            letterSpacing: 1,
             marginTop: 2,
           },
         }}

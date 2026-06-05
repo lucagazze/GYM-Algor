@@ -5,6 +5,13 @@ export const Fonts = {
   mono: Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' }),
 } as const;
 
+export const F = {
+  // Barlow Condensed — headings, labels, names, numbers
+  condensed: 'Barlow Condensed',
+  // Barlow — body text, descriptions
+  body: 'Barlow',
+} as const;
+
 export type ThemeColor = 'text' | 'textSecondary' | 'background' | 'backgroundElement' | 'border';
 
 export const Spacing = {

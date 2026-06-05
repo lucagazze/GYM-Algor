@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from 'expo-router';
-import { C, CAT_COLOR } from '../constants/theme';
+import { C, CAT_COLOR, F } from '../constants/theme';
 import { MUSCLE_ORDER, MUSCLE_COLOR, getMuscle, muscleChips } from '../constants/muscles';
 import { routineService, folderService, Routine, Folder, ActiveSession } from '../utils/routineService';
 import { workoutService, Exercise, WorkoutLog, RM } from '../utils/workoutService';
@@ -1145,18 +1145,18 @@ export default function RoutinesScreen() {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: C.border },
-  logo: { fontSize: 18, fontWeight: '900', color: C.text, letterSpacing: -0.5 },
+  logo: { fontSize: 20, fontWeight: '900', color: C.text, fontFamily: F.condensed, letterSpacing: 1 },
   newBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.primary, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 6 },
-  newBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 10, letterSpacing: 0.5 },
+  newBtnTxt: { color: '#fff', fontWeight: '900', fontSize: 11, fontFamily: F.condensed, letterSpacing: 1 },
   folderBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.surfaceHigh, borderWidth: 1, borderColor: C.border, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 6 },
-  folderBtnTxt: { color: C.text, fontWeight: '900', fontSize: 10, letterSpacing: 0.5 },
+  folderBtnTxt: { color: C.text, fontWeight: '900', fontSize: 11, fontFamily: F.condensed, letterSpacing: 1 },
 
   // Folder cards
   folderCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden' },
-  folderHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 12, gap: 4 },
-  folderName: { fontSize: 14, fontWeight: '900', color: C.text, letterSpacing: -0.3 },
-  folderSummary: { fontSize: 11, color: C.muted, fontWeight: '600', marginTop: 2 },
-  folderCount: { fontSize: 10, color: C.primary, fontWeight: '800', marginRight: 4 },
+  folderHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, gap: 4 },
+  folderName: { fontSize: 15, fontWeight: '700', color: C.text, fontFamily: F.condensed, letterSpacing: 0.5 },
+  folderSummary: { fontSize: 11, color: C.muted, fontFamily: F.body, marginTop: 1 },
+  folderCount: { fontSize: 11, color: C.primary, fontWeight: '700', fontFamily: F.condensed, marginRight: 4 },
   folderBody: { borderTopWidth: 1, borderTopColor: C.border, padding: 10, gap: 8 },
   folderEmpty: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 16, borderWidth: 1, borderColor: C.borderLight, borderStyle: 'dashed', borderRadius: 10 },
   folderEmptyTxt: { fontSize: 13, color: C.muted, fontWeight: '600' },
@@ -1179,28 +1179,28 @@ const s = StyleSheet.create({
   emptySub: { fontSize: 12, color: C.muted, textAlign: 'center', maxWidth: 240 },
 
   // ── Routine Card ──────────────────────────────────────────
-  routineCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 16, overflow: 'hidden' },
+  routineCard: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.border, borderRadius: 14, overflow: 'hidden' },
 
-  cardHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingTop: 12, paddingBottom: 10, gap: 6, borderBottomWidth: 1, borderBottomColor: C.border },
-  routineName: { fontSize: 15, fontWeight: '900', color: C.text, letterSpacing: -0.4, marginBottom: 5 },
-  catPills: { flexDirection: 'row', gap: 5, flexWrap: 'wrap' },
-  catPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 20 },
-  catPillDot: { width: 5, height: 5, borderRadius: 3 },
-  catPillTxt: { fontSize: 9, fontWeight: '800', letterSpacing: 0.3 },
-  iconBtn: { padding: 5 },
-  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10 },
-  playTxt: { color: '#fff', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8, gap: 4, borderBottomWidth: 1, borderBottomColor: C.border },
+  routineName: { fontSize: 16, fontWeight: '700', color: C.text, fontFamily: F.condensed, letterSpacing: 0.3, marginBottom: 3 },
+  catPills: { flexDirection: 'row', gap: 4, flexWrap: 'wrap' },
+  catPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 20 },
+  catPillDot: { width: 4, height: 4, borderRadius: 2 },
+  catPillTxt: { fontSize: 9, fontWeight: '700', fontFamily: F.condensed, letterSpacing: 0.5 },
+  iconBtn: { padding: 4 },
+  playBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 9 },
+  playTxt: { color: '#fff', fontSize: 11, fontWeight: '700', fontFamily: F.condensed, letterSpacing: 1 },
 
   // ── Exercise Table ────────────────────────────────────────
   table: { },
-  tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 5, backgroundColor: C.surfaceHigh },
-  tableHdr: { fontSize: 8, fontWeight: '800', color: C.muted, letterSpacing: 0.8, textTransform: 'uppercase' },
-  tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 9, gap: 8 },
+  tableHead: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, backgroundColor: C.surfaceHigh },
+  tableHdr: { fontSize: 9, fontWeight: '700', color: C.muted, fontFamily: F.condensed, letterSpacing: 1, textTransform: 'uppercase' },
+  tableRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 7, gap: 8 },
   tableRowAlt: { backgroundColor: C.surfaceHigh + '55' },
-  tableNum: { fontSize: 10, color: C.muted, fontWeight: '800', width: 18 },
-  tableCatBar: { width: 3, height: 14, borderRadius: 2 },
-  tableExName: { flex: 1, fontSize: 13, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
-  tableCatTxt: { fontSize: 9, fontWeight: '800', letterSpacing: 0.3 },
+  tableNum: { fontSize: 11, color: C.muted, fontWeight: '700', fontFamily: F.condensed, width: 18 },
+  tableCatBar: { width: 3, height: 13, borderRadius: 2 },
+  tableExName: { flex: 1, fontSize: 13, fontWeight: '600', fontFamily: F.condensed, color: C.text, letterSpacing: 0.2 },
+  tableCatTxt: { fontSize: 10, fontWeight: '700', fontFamily: F.condensed, letterSpacing: 0.5 },
   tableType: { fontSize: 13, textAlign: 'right' },
 
   // Modal/sheet shared
