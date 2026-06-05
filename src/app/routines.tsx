@@ -318,6 +318,22 @@ export default function RoutinesScreen() {
     setQuickName(''); setQuickMuscle(''); setQuickTracking('weight');
   };
 
+  const moveRoutineOrder = async (routine: Routine, dir: -1 | 1) => {
+    const group = [...routines]
+      .filter(r => r.folderId === routine.folderId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = group.findIndex(r => r.id === routine.id);
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= group.length) return;
+    [group[idx], group[newIdx]] = [group[newIdx], group[idx]];
+    const updated = group.map((r, i) => ({ ...r, sortOrder: i }));
+    setRoutines(prev => {
+      const others = prev.filter(r => r.folderId !== routine.folderId);
+      return [...others, ...updated];
+    });
+    await routineService.saveOrder(updated);
+  };
+
   const moveEx = (idx: number, dir: -1 | 1) => {
     const arr = [...selectedExIds];
     if (idx + dir < 0 || idx + dir >= arr.length) return;
@@ -493,6 +509,10 @@ export default function RoutinesScreen() {
       const cat = getEx(id)?.category ?? 'OTROS';
       catCounts[cat] = (catCounts[cat] || 0) + 1;
     });
+    const group = routines
+      .filter(rx => rx.folderId === r.folderId)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = group.findIndex(rx => rx.id === r.id);
     return (
       <View style={s.routineCard}>
         <View style={s.cardHeader}>
@@ -507,6 +527,12 @@ export default function RoutinesScreen() {
               ))}
             </View>
           </View>
+          <TouchableOpacity onPress={() => moveRoutineOrder(r, -1)} disabled={idx === 0} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+            <Ionicons name="chevron-up" size={14} color={idx === 0 ? C.surfaceHigh : C.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => moveRoutineOrder(r, 1)} disabled={idx === group.length - 1} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+            <Ionicons name="chevron-down" size={14} color={idx === group.length - 1 ? C.surfaceHigh : C.muted} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => openMoveModal(r)} style={s.iconBtn} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
             <Ionicons name="folder-outline" size={13} color={C.muted} />
           </TouchableOpacity>
