@@ -342,6 +342,24 @@ export const workoutService = {
     }
   },
 
+  async updateLog(id: string, updates: Partial<Pick<WorkoutLog, 'added_weight' | 'reps' | 'duration_sec' | 'notes'>>): Promise<{ error?: string }> {
+    if (id.startsWith('offline-')) return { error: 'Log offline' };
+    const userId = await uid();
+    if (!userId) return { error: 'No autenticado' };
+    try {
+      const { error } = await supabase.from('workout_logs').update(updates).eq('id', id).eq('user_id', userId);
+      return error ? { error: error.message } : {};
+    } catch (e: any) { return { error: e.message }; }
+  },
+
+  async deleteLogsForDate(date: string): Promise<void> {
+    const userId = await uid();
+    if (!userId) return;
+    try {
+      await supabase.from('workout_logs').delete().eq('date', date).eq('user_id', userId);
+    } catch {}
+  },
+
   async deleteLog(id: string): Promise<boolean> {
     if (id.startsWith('offline-')) {
       const str = await storage.get(KEYS.offlineLogs);
